@@ -14,13 +14,14 @@ class ReservasiController extends Controller
     {
         $user = auth()->user();
 
-        // Cek apakah mahasiswa sudah memiliki reservasi aktif
+        // Mengambil reservasi aktif milik pengguna (pending/approved)
         $reservasiAktif = Reservasi::with(['kamar'])
             ->where('user_id', $user->id)
+            ->whereIn('status', ['pending', 'approved'])
             ->latest()
             ->first();
 
-        // Ambil daftar kamar yang tersedia untuk dipilih pada langkah 1
+        // Ambil daftar kamar yang tersedia
         $kamars = Kamar::where('status', 'tersedia')
             ->whereRaw('kapasitas > terisi')
             ->get();
@@ -30,15 +31,25 @@ class ReservasiController extends Controller
 
     public function store(Request $request)
     {
+        $user = auth()->user();
+
+        // Validasi Back-end: Tolak jika sudah punya kamar/reservasi aktif
+        if ($user->punyaKamarAktif()) {
+            return redirect()->route('penghuni.reservasi.index')
+                ->with('error', 'Anda sudah memiliki kamar atau reservasi aktif. Satu penghuni hanya dapat memesan 1 kamar.');
+        }
+
         $request->validate([
             'kamar_id' => 'required|exists:kamars,id',
             'foto_ktp' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'foto_ktm' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        $user = auth()->user();
+        $kamar = Kamar::findOrFail($request->kamar_id);
+        if ($kamar->terisi >= $kamar->kapasitas || $kamar->status !== 'tersedia') {
+            return redirect()->back()->with('error', 'Kamar yang Anda pilih sudah penuh atau tidak tersedia.');
+        }
 
-        // Buat kode reservasi unik (misal: RSV-2026-XXXX)
         $kodeReservasi = 'RSV-' . date('Y') . '-' . strtoupper(Str::random(4));
 
         Reservasi::create([

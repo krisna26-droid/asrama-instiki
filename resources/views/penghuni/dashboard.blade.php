@@ -2,7 +2,7 @@
     title="Dashboard Penghuni - Asrama INSTIKI" 
     activeMenu="dashboard">
 
-    <!-- Hero Banner Utama (Memakai Inline Style Fallback Agar Pasti Berwarna Biru) -->
+    <!-- Hero Banner Utama -->
     <div class="rounded-2xl p-6 sm:p-8 text-white shadow-sm relative overflow-hidden bg-blue-600" style="background-color: #2563eb !important;">
         <div class="relative z-10 space-y-3 max-w-xl">
             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-xs font-semibold text-white border border-white/30">
@@ -15,14 +15,19 @@
             </p>
 
             <div class="flex flex-wrap gap-3 pt-2">
-                <a href="{{ route('penghuni.kamar.index') }}" class="px-4 py-2.5 bg-white text-blue-700 font-bold text-xs rounded-xl shadow-sm hover:bg-blue-50 transition inline-flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-                    Pesan Kamar
-                </a>
-                <a href="{{ route('penghuni.pembayaran.index') }}" class="px-4 py-2.5 bg-blue-700 border border-blue-400 text-white font-bold text-xs rounded-xl hover:bg-blue-800 transition inline-flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                    Bayar Sewa
-                </a>
+                @if(!$reservasi || $reservasi->status === 'rejected')
+                    <a href="{{ route('penghuni.kamar.index') }}" class="px-4 py-2.5 bg-white text-blue-700 font-bold text-xs rounded-xl shadow-sm hover:bg-blue-50 transition inline-flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                        Pesan Kamar
+                    </a>
+                @endif
+
+                @if($reservasi && $reservasi->status === 'approved')
+                    <a href="{{ route('penghuni.pembayaran.index') }}" class="px-4 py-2.5 bg-blue-700 border border-blue-400 text-white font-bold text-xs rounded-xl hover:bg-blue-800 transition inline-flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        Bayar Sewa
+                    </a>
+                @endif
             </div>
         </div>
     </div>
@@ -47,7 +52,7 @@
                         @endif
                     </h3>
                 </div>
-                <div class="w-9 h-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
+                <div class="w-9 h-9 rounded-full {{ !$reservasi ? 'bg-slate-100 text-slate-400' : ($reservasi->status === 'approved' ? 'bg-emerald-50 text-emerald-600' : ($reservasi->status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600')) }} flex items-center justify-center border shrink-0">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 </div>
             </div>
@@ -77,7 +82,7 @@
                         @endif
                     </h3>
                 </div>
-                <div class="w-9 h-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shrink-0">
+                <div class="w-9 h-9 rounded-full {{ !$pembayaranTerakhir ? 'bg-slate-100 text-slate-400' : ($pembayaranTerakhir->status === 'paid' ? 'bg-emerald-50 text-emerald-600' : ($pembayaranTerakhir->status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600')) }} flex items-center justify-center border shrink-0">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                 </div>
             </div>
@@ -96,7 +101,7 @@
                 <div>
                     <p class="text-xs font-semibold text-slate-500">Kamar Penempatan</p>
                     <h3 class="text-xl font-bold text-slate-900 mt-2">
-                        @if($reservasi && $reservasi->kamar)
+                        @if($reservasi && $reservasi->kamar && $reservasi->status === 'approved')
                             Kamar {{ $reservasi->kamar->nomor_kamar }}
                         @else
                             Belum Ditempatkan
@@ -108,7 +113,7 @@
                 </div>
             </div>
             <p class="text-[11px] text-slate-400 mt-4">
-                @if($reservasi && $reservasi->kamar)
+                @if($reservasi && $reservasi->kamar && $reservasi->status === 'approved')
                     Blok {{ $reservasi->kamar->blok }} • Lantai {{ $reservasi->kamar->lantai }}
                 @else
                     Menunggu konfirmasi admin
@@ -118,25 +123,46 @@
 
     </div>
 
-    <!-- Bagian Bawah: Grafik Riwayat & Akses Cepat -->
+    <!-- Bagian Bawah: Grafik Riwayat Pembayaran Dinamis & Aksi Cepat -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        <!-- Riwayat Pembayaran Saya (Grafik) -->
+        <!-- Visual Grafik Batang Dinamis -->
         <div class="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <h2 class="text-xs font-bold text-slate-700">Riwayat Pembayaran Saya</h2>
-            <div class="h-56 flex items-end justify-between border-b border-slate-100 pb-2 text-[11px] text-slate-400 mt-8">
-                <span>Jan</span>
-                <span>Feb</span>
-                <span>Mar</span>
-                <span>Apr</span>
-                <span>Mei</span>
-                <span>Jun</span>
-                <span>Jul</span>
-                <span>Agu</span>
-                <span>Sep</span>
-                <span>Okt</span>
-                <span>Nov</span>
-                <span>Des</span>
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h2 class="text-xs font-bold text-slate-700">Riwayat Pembayaran Saya ({{ date('Y') }})</h2>
+                <span class="text-[10px] text-slate-400 font-mono">Status: Lunas</span>
+            </div>
+
+            <!-- Area Batang Grafik -->
+            <div class="h-48 flex items-end justify-between gap-2 pt-8 px-2 border-b border-slate-100">
+                @php
+                    $namaBulan = [1=>'Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+                @endphp
+
+                @foreach($chartData as $bulanIndex => $total)
+                    @php
+                        // Hitung persentase tinggi batang (minimal 4% agar tetap terlihat landasannya)
+                        $heightPercent = $total > 0 ? round(($total / $maxAmount) * 100) : 4;
+                    @endphp
+                    <div class="flex-1 flex flex-col items-center gap-2 h-full justify-end group relative">
+                        <!-- Tooltip saat hover -->
+                        <div class="opacity-0 group-hover:opacity-100 transition absolute -top-8 bg-slate-800 text-white text-[10px] py-1 px-2 rounded font-mono pointer-events-none z-20 whitespace-nowrap">
+                            Rp {{ number_format($total, 0, ',', '.') }}
+                        </div>
+
+                        <!-- Batang Grafik -->
+                        <div class="w-full rounded-t-md transition-all duration-300 {{ $total > 0 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-100' }}"
+                             style="height: {{ $heightPercent }}%;">
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
+            <!-- Label Bulan -->
+            <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 px-2 font-mono">
+                @foreach($namaBulan as $m)
+                    <span class="flex-1 text-center">{{ $m }}</span>
+                @endforeach
             </div>
         </div>
 

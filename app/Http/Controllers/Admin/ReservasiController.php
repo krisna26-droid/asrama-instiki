@@ -13,12 +13,10 @@ class ReservasiController extends Controller
     {
         $query = Reservasi::with(['user', 'kamar']);
 
-        // Filter Status
-        if ($request->has('status') && $request->status != 'semua') {
+        if ($request->has('status') && $request->status != 'semua' && $request->status != '') {
             $query->where('status', $request->status);
         }
 
-        // Pencarian
         if ($request->has('search') && $request->search != '') {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -31,25 +29,28 @@ class ReservasiController extends Controller
         }
 
         $reservasis = $query->latest()->get();
-        $kamars = Kamar::where('status', 'tersedia')->get();
+        
+        // Ambil kamar yang belum penuh dan tidak dalam perbaikan
+        $kamars = Kamar::where('status', '!=', 'perbaikan')
+            ->whereColumn('terisi', '<', 'kapasitas')
+            ->get();
 
         return view('admin.reservasi.index', compact('reservasis', 'kamars'));
     }
 
     public function approve(Request $request, Reservasi $reservasi)
     {
-        // Jika admin memilihkan kamar saat approve
-        if ($request->has('kamar_id')) {
+        if ($request->has('kamar_id') && $request->kamar_id != '') {
             $reservasi->kamar_id = $request->kamar_id;
         }
 
         $reservasi->status = 'approved';
         $reservasi->save();
 
-        // Update jumlah terisi pada kamar
         if ($reservasi->kamar) {
             $kamar = $reservasi->kamar;
-            $kamar->terisi += 1;
+            $kamar->terisi = min($kamar->kapasitas, $kamar->terisi + 1);
+            
             if ($kamar->terisi >= $kamar->kapasitas) {
                 $kamar->status = 'tersewa_penuh';
             }

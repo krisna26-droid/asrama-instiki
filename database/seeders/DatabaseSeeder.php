@@ -10,6 +10,10 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        //seeder dummy
+        $this->call([
+            AsramaSeeder::class,    
+        ]);
         // Akun Penghuni / Mahasiswa
         User::create([
             'nama' => 'Mahasiswa Penghuni',

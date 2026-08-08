@@ -36,9 +36,10 @@ Route::middleware(['auth', 'role:penghuni'])->group(function () {
     Route::get('/penghuni/reservasi', [PenghuniReservasiController::class, 'index'])->name('penghuni.reservasi.index');
     Route::post('/penghuni/reservasi', [PenghuniReservasiController::class, 'store'])->name('penghuni.reservasi.store');
 
-    // Pembayaran
+    // Pembayaran & Cetak Kuitansi
     Route::get('/penghuni/pembayaran', [PenghuniPembayaranController::class, 'index'])->name('penghuni.pembayaran.index');
     Route::post('/penghuni/pembayaran', [PenghuniPembayaranController::class, 'store'])->name('penghuni.pembayaran.store');
+    Route::get('/penghuni/pembayaran/{id}/kuitansi', [PenghuniPembayaranController::class, 'cetakKuitansi'])->name('penghuni.pembayaran.kuitansi');
 });
 
 // 2. Rute Khusus Admin Asrama
@@ -64,6 +65,9 @@ Route::middleware(['auth', 'role:admin_keuangan'])->group(function () {
     Route::get('/keuangan/pembayaran', [PembayaranController::class, 'index'])->name('keuangan.pembayaran.index');
     Route::patch('/keuangan/pembayaran/{pembayaran}/verify', [PembayaranController::class, 'verify'])->name('keuangan.pembayaran.verify');
     Route::patch('/keuangan/pembayaran/{pembayaran}/reject', [PembayaranController::class, 'reject'])->name('keuangan.pembayaran.reject');
+
+    // Rute cetak kuitansi untuk Admin Keuangan
+    Route::get('/keuangan/pembayaran/{id}/kuitansi', [PembayaranController::class, 'cetakKuitansi'])->name('keuangan.pembayaran.kuitansi');
 
     Route::get('/keuangan/riwayat', [PembayaranController::class, 'riwayat'])->name('keuangan.riwayat.index');
 
