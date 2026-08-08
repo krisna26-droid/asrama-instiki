@@ -2,11 +2,24 @@
 
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
+
+// Controller Admin Asrama
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\KamarController;
 use App\Http\Controllers\Admin\ReservasiController;
 use App\Http\Controllers\Admin\PenghuniController;
 use App\Http\Controllers\Admin\LaporanController;
+
+// Controller Admin Keuangan
+use App\Http\Controllers\Keuangan\DashboardController as KeuanganDashboardController;
+use App\Http\Controllers\Keuangan\PembayaranController;
+use App\Http\Controllers\Keuangan\LaporanKeuanganController;
+
+// Controller Penghuni
+use App\Http\Controllers\Penghuni\DashboardController as PenghuniDashboardController;
+use App\Http\Controllers\Penghuni\KamarController as PenghuniKamarController;
+use App\Http\Controllers\Penghuni\ReservasiController as PenghuniReservasiController;
+use App\Http\Controllers\Penghuni\PembayaranController as PenghuniPembayaranController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -14,9 +27,18 @@ Route::get('/', function () {
 
 // 1. Rute Khusus Penghuni
 Route::middleware(['auth', 'role:penghuni'])->group(function () {
-    Route::get('/dashboard', function () {
-        return view('dashboard'); 
-    })->name('dashboard');
+    Route::get('/dashboard', [PenghuniDashboardController::class, 'index'])->name('dashboard');
+
+    // Rute Kamar Tersedia untuk Mahasiswa
+    Route::get('/penghuni/kamar', [PenghuniKamarController::class, 'index'])->name('penghuni.kamar.index');
+
+    // Reservasi Saya (Pengajuan & Riwayat)
+    Route::get('/penghuni/reservasi', [PenghuniReservasiController::class, 'index'])->name('penghuni.reservasi.index');
+    Route::post('/penghuni/reservasi', [PenghuniReservasiController::class, 'store'])->name('penghuni.reservasi.store');
+
+    // Pembayaran
+    Route::get('/penghuni/pembayaran', [PenghuniPembayaranController::class, 'index'])->name('penghuni.pembayaran.index');
+    Route::post('/penghuni/pembayaran', [PenghuniPembayaranController::class, 'store'])->name('penghuni.pembayaran.store');
 });
 
 // 2. Rute Khusus Admin Asrama
@@ -37,9 +59,16 @@ Route::middleware(['auth', 'role:admin_asrama'])->group(function () {
 
 // 3. Rute Khusus Admin Keuangan
 Route::middleware(['auth', 'role:admin_keuangan'])->group(function () {
-    Route::get('/keuangan/dashboard', function () {
-        return view('keuangan.dashboard');
-    })->name('keuangan.dashboard');
+    Route::get('/keuangan/dashboard', [KeuanganDashboardController::class, 'index'])->name('keuangan.dashboard');
+
+    Route::get('/keuangan/pembayaran', [PembayaranController::class, 'index'])->name('keuangan.pembayaran.index');
+    Route::patch('/keuangan/pembayaran/{pembayaran}/verify', [PembayaranController::class, 'verify'])->name('keuangan.pembayaran.verify');
+    Route::patch('/keuangan/pembayaran/{pembayaran}/reject', [PembayaranController::class, 'reject'])->name('keuangan.pembayaran.reject');
+
+    Route::get('/keuangan/riwayat', [PembayaranController::class, 'riwayat'])->name('keuangan.riwayat.index');
+
+    Route::get('/keuangan/laporan', [LaporanKeuanganController::class, 'index'])->name('keuangan.laporan.index');
+    Route::get('/keuangan/laporan/export/{type}', [LaporanKeuanganController::class, 'export'])->name('keuangan.laporan.export');
 });
 
 // Rute Profil bawaan Breeze
