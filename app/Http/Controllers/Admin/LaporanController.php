@@ -6,17 +6,24 @@ use App\Http\Controllers\Controller;
 use App\Models\Kamar;
 use App\Models\Reservasi;
 use App\Models\Pembayaran;
+use App\Models\PenempatanPenghuni;
+use App\Services\RoomOccupancyService;
+use App\Support\CsvCellSanitizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class LaporanController extends Controller
 {
-    public function index()
+    public function index(Request $request, RoomOccupancyService $occupancy)
     {
-        // 1. Rekap Ringkas Data Laporan
-        $totalKamar     = Kamar::count();
-        $kamarTerisi    = Kamar::where('status', 'tersewa_penuh')->count();
-        $totalPenghuni  = Reservasi::where('status', 'approved')->count();
+        $tanggalAcuan = $request->input('tanggal_acuan', now()->toDateString());
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalAcuan) || !strtotime($tanggalAcuan)) {
+            $tanggalAcuan = now()->toDateString();
+        }
+        $capacitySummary = $occupancy->capacitySummaryAt($tanggalAcuan);
+        $totalKamar = Kamar::where('is_active', true)->count();
+        $kamarTerisi = PenempatanPenghuni::query()->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')->whereDate('tanggal_mulai', '<=', $tanggalAcuan)->whereDate('tanggal_akhir', '>', $tanggalAcuan)->distinct('kamar_id')->count('kamar_id');
+        $totalPenghuni = $capacitySummary['penghuniAktif'];
         $totalReservasi = Reservasi::count();
 
         // 2. Data Grafik Bulanan (Okupansi Disetujui vs Reservasi Masuk) Tahun Berjalan
@@ -55,7 +62,9 @@ class LaporanController extends Controller
             'totalReservasi',
             'chartTotal',
             'chartApproved',
-            'maxCount'
+            'maxCount',
+            'capacitySummary',
+            'tanggalAcuan'
         ));
     }
 
@@ -78,13 +87,13 @@ class LaporanController extends Controller
             fputs($file, "\xEF\xBB\xBF");
 
             $writeRow = function ($file, $array) {
-                fputcsv($file, $array, ';');
+                fputcsv($file, array_map([CsvCellSanitizer::class, 'sanitize'], $array), ';');
             };
 
             switch ($type) {
                 case 'okupansi':
                     $writeRow($file, ['No', 'Nomor Kamar', 'Blok', 'Lantai', 'Kategori', 'Kapasitas', 'Terisi', 'Status Kamar', 'Harga Bulanan (Rp)']);
-                    $data = Kamar::all();
+                    $data = Kamar::withCount(['penempatans as penghuni_aktif_count' => fn ($query) => $query->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')->whereDate('tanggal_mulai', '<=', now()->toDateString())->whereDate('tanggal_akhir', '>', now()->toDateString())])->get();
                     foreach ($data as $index => $row) {
                         $writeRow($file, [
                             $index + 1,
@@ -93,7 +102,7 @@ class LaporanController extends Controller
                             $row->lantai,
                             strtoupper($row->kategori),
                             $row->kapasitas,
-                            $row->terisi,
+                            $row->penghuni_aktif_count,
                             strtoupper(str_replace('_', ' ', $row->status)),
                             $row->harga_bulanan
                         ]);
@@ -101,32 +110,32 @@ class LaporanController extends Controller
                     break;
 
                 case 'penghuni':
-                    $writeRow($file, ['No', 'Nama Penghuni', 'NIM/NIK', 'Email', 'No Telepon', 'Kamar', 'Blok', 'Durasi Sewa', 'Tanggal Masuk']);
-                    $data = Reservasi::with(['user', 'kamar'])->where('status', 'approved')->latest()->get();
+                    $writeRow($file, ['No', 'Nama Penghuni', 'NIK', 'Email', 'No Telepon', 'Kamar', 'Blok', 'Durasi Sewa', 'Tanggal Masuk']);
+                    $data = PenempatanPenghuni::with(['user', 'kamar', 'reservasi'])->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')->whereDate('tanggal_mulai', '<=', now()->toDateString())->whereDate('tanggal_akhir', '>', now()->toDateString())->latest('check_in_at')->get();
                     foreach ($data as $index => $row) {
                         $writeRow($file, [
                             $index + 1,
                             $row->user->nama ?? '-',
-                            $row->user->nim_nik ?? '-',
+                            $row->user->nik ?? '-',
                             $row->user->email ?? '-',
                             $row->user->no_telepon ?? '-',
                             $row->kamar ? 'Kamar ' . $row->kamar->nomor_kamar : '-',
                             $row->kamar->blok ?? '-',
-                            $row->durasi_sewa,
-                            \Carbon\Carbon::parse($row->tanggal_pengajuan)->format('Y-m-d')
+                            $row->reservasi->durasi_sewa ?? '-',
+                            $row->check_in_at?->format('Y-m-d') ?? '-'
                         ]);
                     }
                     break;
 
                 case 'reservasi':
-                    $writeRow($file, ['No', 'Kode Reservasi', 'Nama Pemohon', 'NIM/NIK', 'Kamar Diajukan', 'Durasi Sewa', 'Status', 'Tanggal Pengajuan']);
+                    $writeRow($file, ['No', 'Kode Reservasi', 'Nama Pemohon', 'NIK', 'Kamar Dialokasikan', 'Durasi Sewa', 'Status', 'Tanggal Pengajuan']);
                     $data = Reservasi::with(['user', 'kamar'])->latest()->get();
                     foreach ($data as $index => $row) {
                         $writeRow($file, [
                             $index + 1,
                             $row->kode_reservasi,
                             $row->user->nama ?? '-',
-                            $row->user->nim_nik ?? '-',
+                            $row->user->nik ?? 'Belum diverifikasi',
                             $row->kamar ? 'Kamar ' . $row->kamar->nomor_kamar . ' (Blok ' . $row->kamar->blok . ')' : 'Belum ditentukan',
                             $row->durasi_sewa,
                             strtoupper($row->status),
@@ -136,14 +145,14 @@ class LaporanController extends Controller
                     break;
 
                 case 'pendapatan':
-                    $writeRow($file, ['No', 'Kode Pembayaran', 'Nama Penghuni', 'NIM/NIK', 'Jumlah (Rp)', 'Metode', 'Tanggal Bayar']);
+                    $writeRow($file, ['No', 'Kode Pembayaran', 'Nama Penghuni', 'NIK', 'Jumlah (Rp)', 'Metode', 'Tanggal Bayar']);
                     $data = Pembayaran::with('user')->where('status', 'paid')->latest()->get();
                     foreach ($data as $index => $row) {
                         $writeRow($file, [
                             $index + 1,
                             $row->kode_pembayaran,
                             $row->user->nama ?? '-',
-                            $row->user->nim_nik ?? '-',
+                            $row->user->nik ?? 'Belum diverifikasi',
                             $row->jumlah_bayar,
                             $row->metode_pembayaran,
                             \Carbon\Carbon::parse($row->updated_at)->format('Y-m-d H:i')

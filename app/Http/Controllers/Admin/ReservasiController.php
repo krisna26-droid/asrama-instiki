@@ -4,68 +4,76 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Reservasi;
-use App\Models\Kamar;
+use App\Services\ReservationLifecycleService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ReservasiController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Reservasi::with(['user', 'kamar']);
+        $query = Reservasi::query()->with(['user', 'kamar', 'penempatans.kamar']);
 
-        if ($request->has('status') && $request->status != 'semua' && $request->status != '') {
-            $query->where('status', $request->status);
+        if ($request->filled('status') && $request->string('status')->toString() !== 'semua') {
+            $query->where('status', $request->string('status')->toString());
         }
-
-        if ($request->has('search') && $request->search != '') {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('kode_reservasi', 'like', "%{$search}%")
-                  ->orWhereHas('user', function($u) use ($search) {
-                      $u->where('nama', 'like', "%{$search}%")
-                        ->orWhere('nim_nik', 'like', "%{$search}%");
-                  });
+        if ($request->filled('search')) {
+            $term = trim($request->string('search')->toString());
+            $query->where(function ($builder) use ($term) {
+                $builder->where('kode_reservasi', 'like', "%{$term}%")
+                    ->orWhereHas('user', function ($user) use ($term) {
+                        $user->where('nama', 'like', "%{$term}%")
+                            ->orWhere('nik', 'like', "%{$term}%");
+                    });
             });
         }
+        if ($request->filled('tanggal_dari')) {
+            $query->whereDate('tanggal_pengajuan', '>=', $request->date('tanggal_dari'));
+        }
+        if ($request->filled('tanggal_sampai')) {
+            $query->whereDate('tanggal_pengajuan', '<=', $request->date('tanggal_sampai'));
+        }
 
-        $reservasis = $query->latest()->get();
-        
-        // Ambil kamar yang belum penuh dan tidak dalam perbaikan
-        $kamars = Kamar::where('status', '!=', 'perbaikan')
-            ->whereColumn('terisi', '<', 'kapasitas')
-            ->get();
-
-        return view('admin.reservasi.index', compact('reservasis', 'kamars'));
+        $reservasis = $query->latest()->paginate(15)->withQueryString();
+        return view('admin.reservasi.index', compact('reservasis'));
     }
 
-    public function approve(Request $request, Reservasi $reservasi)
+    public function approve(Request $request, Reservasi $reservasi, ReservationLifecycleService $lifecycle)
     {
-        if ($request->has('kamar_id') && $request->kamar_id != '') {
-            $reservasi->kamar_id = $request->kamar_id;
-        }
+        $validated = $request->validate([
+            'tanggal_mulai' => ['required', 'date_format:Y-m-d'],
+            'durasi_bulan' => ['nullable', 'integer', 'min:1', 'max:12'],
+        ]);
 
-        $reservasi->status = 'approved';
-        $reservasi->save();
-
-        if ($reservasi->kamar) {
-            $kamar = $reservasi->kamar;
-            $kamar->terisi = min($kamar->kapasitas, $kamar->terisi + 1);
-            
-            if ($kamar->terisi >= $kamar->kapasitas) {
-                $kamar->status = 'tersewa_penuh';
-            }
-            $kamar->save();
-        }
-
-        return redirect()->back()->with('success', 'Reservasi berhasil disetujui.');
+        $lifecycle->approve($reservasi->id, $validated['tanggal_mulai'], isset($validated['durasi_bulan']) ? (int) $validated['durasi_bulan'] : null);
+        return redirect()->route('admin.reservasi.index')->with('success', 'Reservasi disetujui, periode dan tagihan dihitung dari durasi, lalu kamar dialokasikan otomatis.');
     }
 
     public function reject(Request $request, Reservasi $reservasi)
     {
-        $reservasi->status = 'rejected';
-        $reservasi->catatan_admin = $request->catatan_admin ?? 'Pengajuan tidak memenuhi syarat.';
-        $reservasi->save();
+        $validated = $request->validate(['catatan_admin' => ['required', 'string', 'max:2000']]);
 
-        return redirect()->back()->with('success', 'Reservasi telah ditolak.');
+        DB::transaction(function () use ($reservasi, $validated) {
+            $locked = Reservasi::query()->whereKey($reservasi->id)->lockForUpdate()->firstOrFail();
+            if ($locked->status !== 'pending' || $locked->penempatans()->exists()) {
+                throw ValidationException::withMessages(['reservasi' => 'Hanya reservasi pending yang dapat ditolak.']);
+            }
+            $locked->status = 'rejected';
+            $locked->catatan_admin = $validated['catatan_admin'];
+            $locked->save();
+        }, 3);
+
+        return redirect()->route('admin.reservasi.index')->with('success', 'Reservasi ditolak dengan alasan yang tersimpan.');
+    }
+
+    public function verifyLegacy(Request $request, Reservasi $reservasi, ReservationLifecycleService $lifecycle)
+    {
+        $validated = $request->validate([
+            'tanggal_mulai' => ['required', 'date_format:Y-m-d'],
+            'tanggal_akhir' => ['required', 'date_format:Y-m-d', 'after:tanggal_mulai'],
+        ]);
+        $lifecycle->verifyLegacy($reservasi->id, $validated['tanggal_mulai'], $validated['tanggal_akhir']);
+        return back()->with('success', 'Reservasi lama diverifikasi dan placement baru dibuat tanpa menghapus histori.');
     }
 }

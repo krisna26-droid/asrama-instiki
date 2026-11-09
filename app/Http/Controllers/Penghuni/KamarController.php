@@ -3,35 +3,14 @@
 namespace App\Http\Controllers\Penghuni;
 
 use App\Http\Controllers\Controller;
-use App\Models\Kamar;
-use Illuminate\Http\Request;
+use App\Services\RoomOccupancyService;
 
 class KamarController extends Controller
 {
-    public function index(Request $request)
+    public function index(RoomOccupancyService $occupancy)
     {
-        $query = Kamar::query();
-
-        // Filter ketersediaan (default: hanya yang tersedia)
-        if ($request->get('filter') === 'semua') {
-            // Menampilkan semua kamar
-        } else {
-            // Default hanya menampilkan kamar berstatus tersedia
-            $query->where('status', 'tersedia');
-        }
-
-        // Pencarian berdasarkan nomor kamar atau blok
-        if ($request->has('search') && $request->search != '') {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('nomor_kamar', 'like', "%{$search}%")
-                  ->orWhere('blok', 'like', "%{$search}%")
-                  ->orWhere('fasilitas', 'like', "%{$search}%");
-            });
-        }
-
-        $kamars = $query->latest()->get();
-
-        return view('penghuni.kamar.index', compact('kamars'));
+        $capacity = $occupancy->currentCapacitySummary();
+        $hasActiveRequest = auth()->user()->punyaKamarAktif();
+        return view('penghuni.kamar.index', compact('capacity', 'hasActiveRequest'));
     }
 }

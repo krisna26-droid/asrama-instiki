@@ -12,6 +12,9 @@ class RoleMiddleware
     {
         // Cek apakah user sudah login dan role-nya sesuai dengan yang diminta
         if ($request->user() && $request->user()->role === $role) {
+            if (array_key_exists('is_active', $request->user()->getAttributes()) && !$request->user()->is_active) {
+                abort(403, 'Akun ini sedang dinonaktifkan.');
+            }
             return $next($request);
         }
 

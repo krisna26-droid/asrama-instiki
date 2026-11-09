@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Penghuni;
 use App\Http\Controllers\Controller;
 use App\Models\Pembayaran;
 use App\Models\Reservasi;
+use App\Models\PenempatanPenghuni;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -14,13 +15,34 @@ class DashboardController extends Controller
         $user = auth()->user();
 
         // 1. Ambil data reservasi terbaru milik user (termasuk relasi kamar)
-        $reservasi = Reservasi::with('kamar')
+        $reservasi = Reservasi::query()
             ->where('user_id', $user->id)
             ->latest()
             ->first();
+        $hasOpenReservation = Reservasi::query()->where('user_id', $user->id)
+            ->whereIn('status', ['pending', 'approved', 'legacy_unverified', 'no_show'])
+            ->exists();
+
+        $activePlacement = PenempatanPenghuni::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->whereNotNull('check_in_at')
+            ->whereNull('check_out_at')
+            ->whereDate('tanggal_mulai', '<=', now()->toDateString())
+            ->whereDate('tanggal_akhir', '>', now()->toDateString())
+            ->latest('id')->first();
+
+        $assignedPlacements = PenempatanPenghuni::query()
+            ->with('kamar')
+            ->where('user_id', $user->id)
+            ->whereIn('status', ['scheduled', 'active'])
+            ->whereHas('reservasi', fn ($query) => $query->where('status', 'approved'))
+            ->orderByRaw("CASE WHEN status = 'active' THEN 0 ELSE 1 END")
+            ->orderBy('tanggal_mulai')
+            ->get();
 
         // 2. Ambil transaksi pembayaran paling akhir untuk kartu indikator status
-        $pembayaranTerakhir = Pembayaran::where('user_id', $user->id)
+        $pembayaranTerakhir = Pembayaran::with('reservasi')->where('user_id', $user->id)
             ->latest()
             ->first();
 
@@ -46,7 +68,10 @@ class DashboardController extends Controller
         $maxAmount = max(array_values($chartData)) ?: 1;
 
         return view('penghuni.dashboard', compact(
-            'reservasi', 
+            'reservasi',
+            'hasOpenReservation',
+            'activePlacement',
+            'assignedPlacements',
             'pembayaranTerakhir', 
             'chartData', 
             'maxAmount'

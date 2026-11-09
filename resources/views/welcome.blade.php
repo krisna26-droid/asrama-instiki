@@ -35,45 +35,69 @@
                         <a href="{{ url($targetUrl) }}" class="px-4 py-2 bg-[#ed1c24] text-white text-xs sm:text-sm font-semibold rounded hover:bg-red-700 transition">Dashboard Saya</a>
                     @else
                         <a href="{{ route('login') }}" class="px-3 py-2 text-slate-700 text-xs sm:text-sm font-semibold hover:text-[#ed1c24] transition">Log in</a>
-                        @if (Route::has('register'))
-                            <a href="{{ route('register') }}" class="px-4 py-2 bg-[#ed1c24] text-white text-xs sm:text-sm font-semibold rounded hover:bg-red-700 transition">Daftar Akun</a>
-                        @endif
                     @endauth
                 </div>
             </div>
         </header>
 
         <!-- Hero Section (Clean Solid Dark, Red Accent, No Gradients) -->
-        <section class="bg-slate-900 text-white py-16 sm:py-24 border-b border-slate-800">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <span class="inline-block py-1 px-3 rounded bg-[#ed1c24]/20 border border-[#ed1c24]/30 text-red-400 text-xs font-bold tracking-widest uppercase mb-6">
-                    Official Housing Portal INSTIKI
-                </span>
-                <h1 class="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-6 leading-snug">
-                    Sistem Informasi Pengelolaan & Reservasi <br><span class="text-[#ed1c24]">Asrama Kampus INSTIKI</span>
+        <section class="relative isolate overflow-hidden min-h-[750px] sm:min-h-[850px] flex items-center bg-slate-900 text-white py-16 sm:py-24 border-b border-slate-800" style="min-height: 650px;">
+            <!-- Background Image -->
+            <div class="absolute inset-0 z-0" style="background-image: url('{{ asset('image/asrama-bg.png') }}'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
+            <!-- Dark Overlay -->
+            <div class="absolute inset-0 z-10" style="background: linear-gradient(to bottom, rgba(2, 6, 23, 0.65), rgba(2, 6, 23, 0.8));"></div>
+            <!-- Hero Content -->
+            <div class="relative z-20 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <span class="inline-block py-1 px-3 rounded bg-[#ed1c24]/20 border border-[#ed1c24]/30 text-red-400 text-xs font-bold tracking-widest uppercase mb-6">Official Housing Portal INSTIKI</span>
+                <h1 class="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-6 leading-snug">Sistem Informasi Pengelolaan & Reservasi<br>
+                    <span class="text-[#ed1c24]">Asrama Kampus INSTIKI</span>
                 </h1>
-                <p class="max-w-2xl mx-auto text-sm sm:text-base text-slate-300 mb-8 leading-relaxed font-normal">
+
+                <p class="max-w-2xl mx-auto text-sm sm:text-base text-slate-200 mb-8 leading-relaxed font-normal">
                     Hunian sementara yang nyaman, aman, dan mendukung produktivitas akademik mahasiswa baru INSTIKI. Lakukan reservasi kamar secara online dengan mudah dan transparan.
                 </p>
+
                 <div class="flex flex-col sm:flex-row justify-center items-center gap-3 sm:gap-4">
                     @auth
                         @php
                             $role = auth()->user()->role;
                             $targetUrl = '/dashboard';
+
                             if ($role === 'admin_asrama') {
                                 $targetUrl = '/admin/dashboard';
                             } elseif ($role === 'admin_keuangan') {
                                 $targetUrl = '/keuangan/dashboard';
                             }
                         @endphp
-                        <a href="{{ url($targetUrl) }}" class="w-full sm:w-auto px-6 py-3 bg-[#ed1c24] text-white font-semibold rounded hover:bg-red-700 transition text-sm">Masuk ke Dashboard</a>
+
+                        <a href="{{ url($targetUrl) }}"
+                        class="w-full sm:w-auto px-6 py-3 bg-[#ed1c24] text-white font-semibold rounded hover:bg-red-700 transition text-sm">
+                            Masuk ke Dashboard
+                        </a>
                     @else
-                        <a href="{{ route('register') }}" class="w-full sm:w-auto px-6 py-3 bg-[#ed1c24] text-white font-semibold rounded hover:bg-red-700 transition text-sm">Mulai Pendaftaran Asrama</a>
-                        <a href="{{ route('login') }}" class="w-full sm:w-auto px-6 py-3 bg-slate-800 border border-slate-700 text-slate-200 font-semibold rounded hover:bg-slate-700 transition text-sm">Masuk Sistem</a>
+                        <a href="{{ route('login') }}"
+                        class="w-full sm:w-auto px-6 py-3 bg-slate-800/90 border border-slate-600 text-white font-semibold rounded hover:bg-slate-700 transition text-sm">
+                            Masuk Sistem
+                        </a>
                     @endauth
+                </div>
+
+            </div>
+            {{-- Info ketersediaan (pojok kanan bawah hero) --}}
+            <div class="absolute z-20" style="right: 1.5rem; bottom: 1.5rem;">
+                <div class="flex text-white rounded" style="background: rgba(2, 6, 23, 0.7); border: 1px solid rgba(255, 255, 255, 0.2); backdrop-filter: blur(4px);">
+                    <div class="px-4 py-2.5 text-right">
+                        <p class="text-[10px] uppercase tracking-wider text-slate-300">Kamar Tersedia</p>
+                        <p class="text-lg font-bold leading-tight sm:text-xl">{{ $schemaReady ? number_format($kapasitasTersedia) : '—' }}</p>
+                    </div>
+                    <div class="px-4 py-2.5 text-right" style="border-left: 1px solid rgba(255, 255, 255, 0.2);">
+                        <p class="text-[10px] uppercase tracking-wider text-slate-300">Penghuni</p>
+                        <p class="text-lg font-bold leading-tight sm:text-xl">{{ $schemaReady ? number_format($penghuniAktif) : '—' }}</p>
+                    </div>
                 </div>
             </div>
         </section>
+
 
         <!-- Keunggulan Section (Responsive Grid, Clean Flat Cards) -->
         <section class="py-16 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

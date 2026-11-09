@@ -16,7 +16,6 @@ class Pembayaran extends Model
         'jumlah_bayar',
         'metode_pembayaran',
         'bukti_pembayaran',
-        'status',
         'catatan_keuangan',
     ];
 
@@ -28,5 +27,15 @@ class Pembayaran extends Model
     public function reservasi()
     {
         return $this->belongsTo(Reservasi::class);
+    }
+
+    public function diputuskanOleh()
+    {
+        return $this->belongsTo(User::class, 'diputuskan_oleh');
+    }
+
+    protected function casts(): array
+    {
+        return ['diputuskan_at' => 'datetime'];
     }
 }

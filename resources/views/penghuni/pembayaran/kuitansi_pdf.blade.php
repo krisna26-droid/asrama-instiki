@@ -146,20 +146,19 @@
             <td class="value">{{ date('Y') }}/{{ date('Y') + 1 }}</td>
         </tr>
         <tr>
-            <td class="label">NIM / NIK</td>
+            <td class="label">Kode Pembayaran</td>
             <td class="separator">:</td>
-            <td class="value">{{ $pembayaran->user->nim_nik ?? '-' }}</td>
+            <td class="value">{{ $pembayaran->kode_pembayaran }}</td>
 
             <td class="label">Tanggal Bayar</td>
             <td class="separator">:</td>
             <td class="value">{{ \Carbon\Carbon::parse($pembayaran->updated_at)->format('d F Y') }}</td>
         </tr>
         <tr>
-            <td class="label">Kamar / Blok</td>
+            <td class="label">Reservasi</td>
             <td class="separator">:</td>
             <td class="value">
-                Kamar {{ $pembayaran->reservasi->kamar->nomor_kamar ?? '-' }} 
-                (Blok {{ $pembayaran->reservasi->kamar->blok ?? '-' }})
+                {{ $pembayaran->reservasi->kode_reservasi ?? '-' }}
             </td>
 
             <td class="label">Metode Bayar</td>
@@ -179,8 +178,19 @@
         </thead>
         <tbody>
             <tr>
-                <td>Sewa Kamar Asrama</td>
-                <td>{{ \Carbon\Carbon::parse($pembayaran->created_at)->format('F Y') }}</td>
+                <td>
+                    Sewa Kamar Asrama
+                    @if($pembayaran->reservasi?->durasi_bulan && $pembayaran->reservasi?->tarif_bulanan_disetujui !== null && $pembayaran->reservasi?->jumlah_tagihan !== null)
+                        <br><small>{{ $pembayaran->reservasi->durasi_bulan }} bulan · Rp {{ number_format($pembayaran->reservasi->tarif_bulanan_disetujui, 0, ',', '.') }}/bulan</small>
+                    @endif
+                </td>
+                <td>
+                    @if($pembayaran->reservasi?->tanggal_mulai_disetujui && $pembayaran->reservasi?->tanggal_akhir_disetujui)
+                        {{ $pembayaran->reservasi->tanggal_mulai_disetujui->format('d M Y') }} – {{ $pembayaran->reservasi->tanggal_akhir_disetujui->format('d M Y') }}
+                    @else
+                        {{ \Carbon\Carbon::parse($pembayaran->created_at)->format('F Y') }}
+                    @endif
+                </td>
                 <td style="text-align: right; font-weight: bold;">
                     Rp {{ number_format($pembayaran->jumlah_bayar, 0, ',', '.') }}
                 </td>

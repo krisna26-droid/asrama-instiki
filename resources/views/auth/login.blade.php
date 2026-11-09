@@ -35,10 +35,6 @@
             Masuk ke Sistem
         </h1>
 
-        <p class="mt-2 text-sm text-slate-600">
-            Silakan masukkan email dan password Anda.
-        </p>
-
     </div>
 
     <x-auth-session-status
@@ -50,30 +46,30 @@
 
         @csrf
 
-        <!-- Email -->
+        <!-- NIM / Email -->
         <div>
 
             <x-input-label
-                for="email"
-                :value="__('Email')"
+                for="login"
+                value="Username"
                 class="text-sm font-semibold text-slate-700"
             />
 
             <x-text-input
-                id="email"
+                id="login"
                 class="mt-2 block w-full rounded-lg border-slate-300 focus:border-[#ed1c24] focus:ring-[#ed1c24]"
-                type="email"
-                name="email"
-                :value="old('email')"
+                type="text"
+                name="login"
+                :value="old('login')"
                 required
                 autofocus
                 autocomplete="username"
-                placeholder="Masukkan alamat email"
+                placeholder="Masukan username"
             />
 
             <x-input-error
                 class="mt-2"
-                :messages="$errors->get('email')"
+                :messages="$errors->get('login')"
             />
 
         </div>
@@ -168,27 +164,6 @@
         </div>
 
     </form>
-
-    @if (Route::has('register'))
-
-        <div class="mt-8 border-t border-slate-200 pt-6 text-center">
-
-            <p class="text-sm text-slate-600">
-
-                Belum memiliki akun?
-
-                <a
-                    href="{{ route('register') }}"
-                    class="font-semibold text-[#ed1c24] hover:text-red-700"
-                >
-                    Daftar Akun
-                </a>
-
-            </p>
-
-        </div>
-
-    @endif
 
 </div>
 

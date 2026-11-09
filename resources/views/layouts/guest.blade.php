@@ -13,9 +13,10 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
-<body class="min-h-screen bg-slate-100 font-sans antialiased selection:bg-[#ed1c24] selection:text-white">
-
-    <main class="flex min-h-screen items-center justify-center px-4 py-10">
+<body class="min-h-screen bg-slate-900 font-sans antialiased selection:bg-blue-600 selection:text-white">
+    <div class="absolute inset-0 z-0" style="background-image: url('{{ asset('image/asrama-bg.png') }}'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
+    <div class="fixed inset-0 bg-slate-950/65"></div>
+    <main class="relative flex min-h-screen items-center justify-center px-4 py-10">
 
         {{ $slot }}
 

@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\KamarController;
 use App\Http\Controllers\Admin\ReservasiController;
 use App\Http\Controllers\Admin\PenghuniController;
 use App\Http\Controllers\Admin\LaporanController;
+use App\Http\Controllers\Admin\AkunPenghuniController;
 
 // Controller Admin Keuangan
 use App\Http\Controllers\Keuangan\DashboardController as KeuanganDashboardController;
@@ -20,10 +21,16 @@ use App\Http\Controllers\Penghuni\DashboardController as PenghuniDashboardContro
 use App\Http\Controllers\Penghuni\KamarController as PenghuniKamarController;
 use App\Http\Controllers\Penghuni\ReservasiController as PenghuniReservasiController;
 use App\Http\Controllers\Penghuni\PembayaranController as PenghuniPembayaranController;
+use App\Http\Controllers\DocumentController;
+use App\Models\Kamar;
+use App\Services\RoomOccupancyService;
 
-Route::get('/', function () {
-    return view('welcome');
+Route::get('/', function (RoomOccupancyService $occupancy) {
+    return view('welcome', $occupancy->currentCapacitySummary());
 });
+
+Route::middleware('auth')->get('/dokumen/ktp/{reservasi}', [DocumentController::class, 'ktp'])->name('dokumen.ktp');
+Route::middleware('auth')->get('/dokumen/pembayaran/{pembayaran}', [DocumentController::class, 'paymentProof'])->name('dokumen.pembayaran');
 
 // 1. Rute Khusus Penghuni
 Route::middleware(['auth', 'role:penghuni'])->group(function () {
@@ -40,19 +47,31 @@ Route::middleware(['auth', 'role:penghuni'])->group(function () {
     Route::get('/penghuni/pembayaran', [PenghuniPembayaranController::class, 'index'])->name('penghuni.pembayaran.index');
     Route::post('/penghuni/pembayaran', [PenghuniPembayaranController::class, 'store'])->name('penghuni.pembayaran.store');
     Route::get('/penghuni/pembayaran/{id}/kuitansi', [PenghuniPembayaranController::class, 'cetakKuitansi'])->name('penghuni.pembayaran.kuitansi');
+    Route::get('/password/first-login', [\App\Http\Controllers\Auth\FirstLoginPasswordController::class, 'edit'])->withoutMiddleware('password.changed')->name('password.first-login');
+    Route::put('/password/first-login', [\App\Http\Controllers\Auth\FirstLoginPasswordController::class, 'update'])->withoutMiddleware('password.changed')->name('password.first-login.update');
 });
 
 // 2. Rute Khusus Admin Asrama
 Route::middleware(['auth', 'role:admin_asrama'])->group(function () {
     Route::get('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
+    Route::get('/admin/akun-penghuni', [AkunPenghuniController::class, 'index'])->name('admin.akun-penghuni.index');
+    Route::post('/admin/akun-penghuni', [AkunPenghuniController::class, 'store'])->name('admin.akun-penghuni.store');
+    Route::put('/admin/akun-penghuni/{user}', [AkunPenghuniController::class, 'update'])->name('admin.akun-penghuni.update');
+    Route::patch('/admin/akun-penghuni/{user}/toggle', [AkunPenghuniController::class, 'toggle'])->name('admin.akun-penghuni.toggle');
+    Route::patch('/admin/akun-penghuni/{user}/reset-password', [AkunPenghuniController::class, 'resetPassword'])->name('admin.akun-penghuni.reset-password');
     Route::resource('/admin/kamar', KamarController::class)->except(['create', 'show', 'edit']);
+    Route::patch('/admin/kamar/{kamar}/toggle-active', [KamarController::class, 'toggleActive'])->name('admin.kamar.toggle-active');
 
     Route::get('/admin/reservasi', [ReservasiController::class, 'index'])->name('admin.reservasi.index');
     Route::patch('/admin/reservasi/{reservasi}/approve', [ReservasiController::class, 'approve'])->name('admin.reservasi.approve');
+    Route::patch('/admin/reservasi/{reservasi}/verify-legacy', [ReservasiController::class, 'verifyLegacy'])->name('admin.reservasi.verify-legacy');
     Route::patch('/admin/reservasi/{reservasi}/reject', [ReservasiController::class, 'reject'])->name('admin.reservasi.reject');
 
     Route::get('/admin/penghuni', [PenghuniController::class, 'index'])->name('admin.penghuni.index');
-    Route::get('/admin/penghuni/{reservasi}', [PenghuniController::class, 'show'])->name('admin.penghuni.show');
+    Route::get('/admin/penghuni/{placement}', [PenghuniController::class, 'show'])->name('admin.penghuni.show');
+    Route::post('/admin/penempatan/{placement}/check-in', [PenghuniController::class, 'checkIn'])->name('admin.penempatan.check-in');
+    Route::post('/admin/penempatan/{placement}/check-out', [PenghuniController::class, 'checkOut'])->name('admin.penempatan.check-out');
+    Route::post('/admin/penempatan/{placement}/transfer', [PenghuniController::class, 'transfer'])->name('admin.penempatan.transfer');
 
     Route::get('/admin/laporan', [LaporanController::class, 'index'])->name('admin.laporan.index');
     Route::get('/admin/laporan/export/{type}', [LaporanController::class, 'export'])->name('admin.laporan.export');
@@ -75,11 +94,9 @@ Route::middleware(['auth', 'role:admin_keuangan'])->group(function () {
     Route::get('/keuangan/laporan/export/{type}', [LaporanKeuanganController::class, 'export'])->name('keuangan.laporan.export');
 });
 
-// Rute Profil bawaan Breeze
+// Profil identity tidak self-edit; hanya password dapat diperbarui oleh pemilik akun.
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
 require __DIR__.'/auth.php';

@@ -13,6 +13,17 @@
             {{ session('success') }}
         </div>
     @endif
+    <form method="GET" action="{{ route('admin.laporan.index') }}" class="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <label class="text-sm font-medium text-slate-700">Tanggal acuan okupansi<input type="date" name="tanggal_acuan" value="{{ $tanggalAcuan }}" class="mt-1 block rounded-lg border-slate-300"></label>
+        <button class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white">Terapkan</button>
+        <a href="{{ route('admin.laporan.index') }}" class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700">Hari ini</a>
+    </form>
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Kapasitas aktif</p><strong class="mt-1 block text-2xl">{{ $capacitySummary['totalKapasitas'] }}</strong></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Penghuni aktif pada {{ $tanggalAcuan }}</p><strong class="mt-1 block text-2xl">{{ $totalPenghuni }}</strong></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Tersedia</p><strong class="mt-1 block text-2xl">{{ $capacitySummary['kapasitasTersedia'] }}</strong></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Keterisian</p><strong class="mt-1 block text-2xl">{{ $capacitySummary['persentase'] }}%</strong></div>
+    </div>
 
     <!-- Grid Kartu Laporan -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

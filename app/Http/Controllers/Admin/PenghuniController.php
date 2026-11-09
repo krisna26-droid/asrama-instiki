@@ -3,40 +3,84 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Reservasi;
+use App\Models\PenempatanPenghuni;
+use App\Models\Kamar;
+use App\Services\ReservationLifecycleService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class PenghuniController extends Controller
 {
     public function index(Request $request)
     {
-        // Mengambil data reservasi yang berstatus approved beserta relasi user dan kamar
-        $query = Reservasi::with(['user', 'kamar'])
-            ->where('status', 'approved');
+        $filters = $request->validate([
+            'tanggal_dari' => ['nullable', 'date_format:Y-m-d'],
+            'tanggal_sampai' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+        if (!empty($filters['tanggal_dari']) && !empty($filters['tanggal_sampai'])
+            && $filters['tanggal_sampai'] < $filters['tanggal_dari']) {
+            throw ValidationException::withMessages(['tanggal_sampai' => 'Tanggal sampai harus sama atau setelah tanggal dari.']);
+        }
+        $status = $request->string('status', 'active')->toString();
+        $query = PenempatanPenghuni::query()->with(['user', 'kamar', 'reservasi.pembayarans']);
 
-        // Pencarian berdasarkan nama, NIM, nomor kamar, atau blok
-        if ($request->has('search') && $request->search != '') {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->whereHas('user', function ($u) use ($search) {
-                    $u->where('nama', 'like', "%{$search}%")
-                      ->orWhere('nim_nik', 'like', "%{$search}%");
-                })
-                ->orWhereHas('kamar', function ($k) use ($search) {
-                    $k->where('nomor_kamar', 'like', "%{$search}%")
-                      ->orWhere('blok', 'like', "%{$search}%");
-                });
+        match ($status) {
+            'scheduled' => $query->where('status', 'scheduled'),
+            'history' => $query->whereIn('status', ['completed', 'cancelled', 'no_show']),
+            default => $query->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')
+                ->whereDate('tanggal_mulai', '<=', now()->toDateString())->whereDate('tanggal_akhir', '>', now()->toDateString()),
+        };
+
+        if ($request->filled('search')) {
+            $term = trim($request->string('search')->toString());
+            $query->where(function ($builder) use ($term) {
+                $builder->whereHas('user', fn ($user) => $user->where('nama', 'like', "%{$term}%")->orWhere('nik', 'like', "%{$term}%"))
+                    ->orWhereHas('kamar', fn ($room) => $room->where('nomor_kamar', 'like', "%{$term}%"));
             });
         }
+        if ($request->filled('jenis_kelamin')) {
+            $query->whereHas('user', fn ($user) => $user->where('jenis_kelamin', $request->string('jenis_kelamin')->toString()));
+        }
+        if (!empty($filters['tanggal_dari'])) {
+            $query->whereDate('tanggal_mulai', '>=', $filters['tanggal_dari']);
+        }
+        if (!empty($filters['tanggal_sampai'])) {
+            $query->whereDate('tanggal_mulai', '<=', $filters['tanggal_sampai']);
+        }
 
-        $penghunis = $query->latest()->get();
-
-        return view('admin.penghuni.index', compact('penghunis'));
+        $penempatans = $query->orderByDesc('tanggal_mulai')->paginate(15)->withQueryString();
+        return view('admin.penghuni.index', compact('penempatans', 'status'));
     }
 
-    public function show(Reservasi $reservasi)
+    public function show(PenempatanPenghuni $placement)
     {
-        $reservasi->load(['user', 'kamar']);
-        return view('admin.penghuni.show', compact('reservasi'));
+        $placement->load(['user', 'kamar', 'reservasi.pembayarans', 'transferDari', 'transferKe.kamar']);
+        $kamarsTujuan = Kamar::query()->where('is_active', true)->where('status', '!=', 'perbaikan')
+            ->where('kategori', $placement->user->jenis_kelamin)->where('id', '!=', $placement->kamar_id)
+            ->orderBy('nomor_kamar')->get(['id', 'nomor_kamar', 'blok', 'kapasitas']);
+        return view('admin.penghuni.show', compact('placement', 'kamarsTujuan'));
+    }
+
+    public function checkIn(PenempatanPenghuni $placement, ReservationLifecycleService $lifecycle)
+    {
+        $lifecycle->checkIn($placement->id, (int) auth()->id());
+        return back()->with('success', 'Check-in berhasil dicatat.');
+    }
+
+    public function checkOut(Request $request, PenempatanPenghuni $placement, ReservationLifecycleService $lifecycle)
+    {
+        $validated = $request->validate(['alasan' => ['required', 'string', 'max:2000']]);
+        $lifecycle->checkOut($placement->id, (int) auth()->id(), $validated['alasan']);
+        return back()->with('success', 'Check-out berhasil dicatat dan placement mendatang dibatalkan.');
+    }
+
+    public function transfer(Request $request, PenempatanPenghuni $placement, ReservationLifecycleService $lifecycle)
+    {
+        $validated = $request->validate([
+            'kamar_id' => ['required', 'integer', 'exists:kamars,id'],
+            'alasan' => ['required', 'string', 'max:2000'],
+        ]);
+        $lifecycle->transferDirect($placement->id, (int) $validated['kamar_id'], (int) auth()->id(), $validated['alasan']);
+        return redirect()->route('admin.penghuni.show', $placement)->with('success', 'Transfer langsung berhasil dicatat. Histori kamar asal tetap tersimpan.');
     }
 }

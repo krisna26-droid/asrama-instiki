@@ -28,6 +28,13 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        if (array_key_exists('is_active', $request->user()->getAttributes()) && !$request->user()->is_active) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+            return redirect()->route('login')->withErrors(['login' => 'Akun ini sedang dinonaktifkan.']);
+        }
+
         $role = $request->user()->role;
 
         // Gunakan redirect()->route(...) secara langsung

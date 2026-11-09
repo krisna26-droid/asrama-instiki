@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Keuangan;
 
 use App\Http\Controllers\Controller;
 use App\Models\Pembayaran;
+use App\Support\CsvCellSanitizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -67,13 +68,13 @@ class LaporanKeuanganController extends Controller
 
             // Fungsi pembantu penulisan baris dengan pemisah titik koma (;)
             $writeRow = function ($file, $array) {
-                fputcsv($file, $array, ';');
+                fputcsv($file, array_map([CsvCellSanitizer::class, 'sanitize'], $array), ';');
             };
 
             switch ($type) {
                 case 'pendapatan':
-                    $writeRow($file, ['No', 'Kode Pembayaran', 'Nama Penghuni', 'NIM/NIK', 'Kamar', 'Periode', 'Jumlah (Rp)', 'Tanggal Bayar', 'Status']);
-                    $data = Pembayaran::with(['user', 'reservasi.kamar'])
+                    $writeRow($file, ['No', 'Kode Pembayaran', 'Nama Penghuni', 'Periode', 'Jumlah (Rp)', 'Tanggal Bayar', 'Status']);
+                    $data = Pembayaran::with('user')
                         ->where('status', 'paid')
                         ->latest()
                         ->get();
@@ -83,8 +84,6 @@ class LaporanKeuanganController extends Controller
                             $index + 1,
                             $row->kode_pembayaran,
                             $row->user->nama ?? '-',
-                            $row->user->nim_nik ?? '-',
-                            $row->reservasi->kamar ? 'Kamar ' . $row->reservasi->kamar->nomor_kamar . ' (' . $row->reservasi->kamar->blok . ')' : '-',
                             \Carbon\Carbon::parse($row->created_at)->format('F Y'),
                             $row->jumlah_bayar,
                             \Carbon\Carbon::parse($row->updated_at)->format('Y-m-d H:i'),
@@ -94,7 +93,7 @@ class LaporanKeuanganController extends Controller
                     break;
 
                 case 'log-pembayaran':
-                    $writeRow($file, ['No', 'Kode Pembayaran', 'Nama Penghuni', 'NIM/NIK', 'Metode Bayar', 'Jumlah (Rp)', 'Status', 'Tanggal Transaksi']);
+                    $writeRow($file, ['No', 'Kode Pembayaran', 'Nama Penghuni', 'Metode Bayar', 'Jumlah (Rp)', 'Status', 'Tanggal Transaksi']);
                     $data = Pembayaran::with('user')->latest()->get();
 
                     foreach ($data as $index => $row) {
@@ -102,7 +101,6 @@ class LaporanKeuanganController extends Controller
                             $index + 1,
                             $row->kode_pembayaran,
                             $row->user->nama ?? '-',
-                            $row->user->nim_nik ?? '-',
                             $row->metode_pembayaran,
                             $row->jumlah_bayar,
                             strtoupper($row->status),
@@ -112,7 +110,7 @@ class LaporanKeuanganController extends Controller
                     break;
 
                 case 'tunggakan':
-                    $writeRow($file, ['No', 'Kode Pembayaran', 'Nama Penghuni', 'NIM/NIK', 'No Telepon', 'Jumlah Tagihan (Rp)', 'Status', 'Tanggal Pengajuan']);
+                    $writeRow($file, ['No', 'Kode Pembayaran', 'Nama Penghuni', 'No Telepon', 'Jumlah Tagihan (Rp)', 'Status', 'Tanggal Pengajuan']);
                     $data = Pembayaran::with('user')
                         ->where('status', 'pending')
                         ->latest()
@@ -123,7 +121,6 @@ class LaporanKeuanganController extends Controller
                             $index + 1,
                             $row->kode_pembayaran,
                             $row->user->nama ?? '-',
-                            $row->user->nim_nik ?? '-',
                             $row->user->no_telepon ?? '-',
                             $row->jumlah_bayar,
                             'MENUNGGU VERIFIKASI',
@@ -133,7 +130,7 @@ class LaporanKeuanganController extends Controller
                     break;
 
                 case 'penolakan':
-                    $writeRow($file, ['No', 'Kode Pembayaran', 'Nama Penghuni', 'NIM/NIK', 'Jumlah (Rp)', 'Alasan Penolakan', 'Tanggal Penolakan']);
+                    $writeRow($file, ['No', 'Kode Pembayaran', 'Nama Penghuni', 'Jumlah (Rp)', 'Alasan Penolakan', 'Tanggal Penolakan']);
                     $data = Pembayaran::with('user')
                         ->where('status', 'rejected')
                         ->latest()
@@ -144,7 +141,6 @@ class LaporanKeuanganController extends Controller
                             $index + 1,
                             $row->kode_pembayaran,
                             $row->user->nama ?? '-',
-                            $row->user->nim_nik ?? '-',
                             $row->jumlah_bayar,
                             $row->catatan_keuangan ?? 'Bukti tidak sesuai',
                             \Carbon\Carbon::parse($row->updated_at)->format('Y-m-d H:i')

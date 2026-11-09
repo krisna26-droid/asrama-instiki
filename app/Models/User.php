@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -13,6 +14,8 @@ class User extends Authenticatable
     protected $fillable = [
         'nama',
         'nim_nik',
+        'nik',
+        'jenis_kelamin',
         'email',
         'password',
         'no_telepon',
@@ -29,16 +32,18 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
+            'is_active' => 'boolean',
+            'must_change_password' => 'boolean',
         ];
     }
 
     /**
-     * Relasi ke reservasi aktif (pending atau approved)
+     * Relasi ke pengajuan terbuka yang belum selesai ditindaklanjuti.
      */
     public function reservasiAktif()
     {
         return $this->hasOne(Reservasi::class)
-            ->whereIn('status', ['pending', 'approved'])
+            ->whereIn('status', ['pending', 'approved', 'legacy_unverified', 'no_show'])
             ->latestOfMany();
     }
 
@@ -48,5 +53,10 @@ class User extends Authenticatable
     public function punyaKamarAktif(): bool
     {
         return $this->reservasiAktif()->exists();
+    }
+
+    public function penempatans(): HasMany
+    {
+        return $this->hasMany(PenempatanPenghuni::class);
     }
 }

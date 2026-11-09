@@ -3,64 +3,83 @@
 namespace App\Http\Controllers\Penghuni;
 
 use App\Http\Controllers\Controller;
-use App\Models\Kamar;
 use App\Models\Reservasi;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class ReservasiController extends Controller
 {
     public function index()
     {
-        $user = auth()->user();
-
-        // Mengambil reservasi aktif milik pengguna (pending/approved)
-        $reservasiAktif = Reservasi::with(['kamar'])
-            ->where('user_id', $user->id)
-            ->whereIn('status', ['pending', 'approved'])
+        $reservasiAktif = Reservasi::with(['penempatans.kamar'])
+            ->where('user_id', auth()->id())
+            ->whereIn('status', ['pending', 'approved', 'legacy_unverified', 'no_show'])
             ->latest()
             ->first();
 
-        // Ambil daftar kamar yang tersedia
-        $kamars = Kamar::where('status', 'tersedia')
-            ->whereRaw('kapasitas > terisi')
-            ->get();
+        $reservasiRiwayat = Reservasi::query()
+            ->with(['penempatans.kamar'])
+            ->where('user_id', auth()->id())
+            ->whereNotIn('status', ['pending', 'approved', 'legacy_unverified', 'no_show'])
+            ->latest('tanggal_pengajuan')
+            ->paginate(10, ['*'], 'riwayat_page')
+            ->withQueryString();
 
-        return view('penghuni.reservasi.index', compact('reservasiAktif', 'kamars'));
+        return view('penghuni.reservasi.index', compact('reservasiAktif', 'reservasiRiwayat'));
     }
 
     public function store(Request $request)
     {
-        $user = auth()->user();
-
-        // Validasi Back-end: Tolak jika sudah punya kamar/reservasi aktif
-        if ($user->punyaKamarAktif()) {
-            return redirect()->route('penghuni.reservasi.index')
-                ->with('error', 'Anda sudah memiliki kamar atau reservasi aktif. Satu penghuni hanya dapat memesan 1 kamar.');
-        }
-
-        $request->validate([
-            'kamar_id' => 'required|exists:kamars,id',
-            'foto_ktp' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-            'foto_ktm' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+        $validated = $request->validate([
+            'durasi_bulan' => ['required', 'integer', 'min:1', 'max:12'],
+            'foto_ktp' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ]);
 
-        $kamar = Kamar::findOrFail($request->kamar_id);
-        if ($kamar->terisi >= $kamar->kapasitas || $kamar->status !== 'tersedia') {
-            return redirect()->back()->with('error', 'Kamar yang Anda pilih sudah penuh atau tidak tersedia.');
+        $user = $request->user();
+        $file = $request->file('foto_ktp');
+        if (! $file || ! $file->isValid()) {
+            throw ValidationException::withMessages(['foto_ktp' => 'File KTP gagal diterima. Silakan pilih ulang file JPG, PNG, atau PDF.']);
         }
 
-        $kodeReservasi = 'RSV-' . date('Y') . '-' . strtoupper(Str::random(4));
+        $path = $file->store('dokumen-ktp', 'local');
+        if (! is_string($path) || ! Storage::disk('local')->exists($path)) {
+            throw ValidationException::withMessages(['foto_ktp' => 'File KTP gagal disimpan. Silakan coba kembali.']);
+        }
 
-        Reservasi::create([
-            'kode_reservasi'    => $kodeReservasi,
-            'user_id'           => $user->id,
-            'kamar_id'          => $request->kamar_id,
-            'tanggal_pengajuan' => now(),
-            'durasi_sewa'       => '1 Semester',
-            'status'            => 'pending',
-        ]);
+        try {
+            DB::transaction(function () use ($user, $path, $validated) {
+                $lockedUser = $user->newQuery()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+                $hasOpenRequest = Reservasi::query()
+                    ->where('user_id', $lockedUser->id)
+                    ->whereIn('status', ['pending', 'approved', 'legacy_unverified', 'no_show'])
+                    ->exists();
 
-        return redirect()->route('dashboard')->with('success', 'Pengajuan reservasi kamar berhasil dikirim.');
+                if ($hasOpenRequest) {
+                    throw ValidationException::withMessages([
+                        'reservasi' => 'Anda masih memiliki reservasi yang menunggu atau disetujui.',
+                    ]);
+                }
+
+                Reservasi::create([
+                    'kode_reservasi' => 'RSV-' . now()->format('Y') . '-' . strtoupper(Str::random(8)),
+                    'user_id' => $lockedUser->id,
+                    'kamar_id' => null,
+                    'tanggal_pengajuan' => now()->toDateString(),
+                    'durasi_sewa' => (int) $validated['durasi_bulan'] . ' bulan',
+                    'durasi_bulan' => (int) $validated['durasi_bulan'],
+                    'status' => 'pending',
+                    'foto_ktp_path' => $path,
+                ]);
+            }, 3);
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($path);
+            throw $exception;
+        }
+
+        return redirect()->route('penghuni.reservasi.index')->with('success', 'Pengajuan reservasi dan KTP berhasil dikirim. Admin Asrama akan menetapkan tanggal mulai dan sistem menghitung tanggal akhir serta tagihannya.');
     }
 }

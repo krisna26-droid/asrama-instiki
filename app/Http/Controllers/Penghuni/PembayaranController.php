@@ -5,113 +5,111 @@ namespace App\Http\Controllers\Penghuni;
 use App\Http\Controllers\Controller;
 use App\Models\Pembayaran;
 use App\Models\Reservasi;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use App\Services\LifecycleLockService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Throwable;
 
 class PembayaranController extends Controller
 {
     public function index()
     {
-        $user = auth()->user();
-
-        // 1. Ambil data reservasi aktif yang sudah disetujui Admin Asrama
-        $reservasi = Reservasi::with('kamar')
-            ->where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->latest()
-            ->first();
-
-        // 2. Ambil transaksi pembayaran terakhir milik pengguna ini
-        $pembayaranAktif = Pembayaran::where('user_id', $user->id)
-            ->latest()
-            ->first();
-
-        // 3. Ambil seluruh riwayat pembayaran untuk tabel bawah
-        $riwayatPembayaran = Pembayaran::where('user_id', $user->id)
-            ->latest()
-            ->get();
-
-        return view('penghuni.pembayaran.index', compact(
-            'reservasi', 
-            'pembayaranAktif', 
-            'riwayatPembayaran'
-        ));
+        $userId = auth()->id();
+        $reservasi = Reservasi::query()->with(['kamar', 'penempatans.kamar'])->where('user_id', $userId)->where('status', 'approved')->whereNotNull('kamar_id')
+            ->whereHas('penempatans', fn ($query) => $query->whereIn('status', ['scheduled', 'active']))
+            ->latest()->first();
+        if ($reservasi && !$reservasi->kamar) {
+            $reservasi = null;
+        }
+        $pembayaranAktif = $reservasi
+            ? Pembayaran::query()->where('reservasi_id', $reservasi->id)->latest()->first()
+            : null;
+        $riwayatPembayaran = Pembayaran::query()->where('user_id', $userId)->latest()->paginate(10)->withQueryString();
+        return view('penghuni.pembayaran.index', compact('reservasi', 'pembayaranAktif', 'riwayatPembayaran'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, LifecycleLockService $locks)
     {
-        $user = auth()->user();
-
-        // Cek 1: Pastikan user punya reservasi kamar yang disetujui
-        $reservasi = Reservasi::with('kamar')
-            ->where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->latest()
-            ->first();
-
-        if (!$reservasi) {
-            return redirect()->back()->with('error', 'Anda belum memiliki reservasi kamar yang disetujui.');
+        $request->validate(['bukti_pembayaran' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120']]);
+        $userId = (int) $request->user()->id;
+        $reservationSnapshot = Reservasi::query()->where('user_id', $userId)->where('status', 'approved')->whereNotNull('kamar_id')
+            ->whereHas('penempatans', fn ($query) => $query->whereIn('status', ['scheduled', 'active']))
+            ->latest()->first();
+        if (!$reservationSnapshot) {
+            return back()->with('error', 'Anda belum memiliki reservasi yang disetujui.');
+        }
+        if ($reservationSnapshot->jumlah_tagihan === null) {
+            return back()->with('error', 'Tagihan reservasi ini belum memiliki rincian durasi dan tarif yang terverifikasi. Hubungi Admin Asrama sebelum mengirim pembayaran.');
         }
 
-        // Cek 2: Preventif back-end - Jangan izinkan kirim jika ada pembayaran yang masih pending
-        $pembayaranPending = Pembayaran::where('user_id', $user->id)
-            ->where('status', 'pending')
-            ->exists();
-
-        if ($pembayaranPending) {
-            return redirect()->back()->with('error', 'Pembayaran sebelumnya masih dalam proses verifikasi oleh admin.');
+        $file = $request->file('bukti_pembayaran');
+        if (! $file || ! $file->isValid()) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['bukti_pembayaran' => 'File bukti pembayaran gagal diterima. Silakan pilih ulang file.']);
         }
 
-        // Cek 3: Validasi Berkas
-        $request->validate([
-            'bukti_pembayaran' => 'required|image|mimes:jpeg,png,jpg,pdf|max:5048',
-        ]);
+        $path = $file->store('bukti-pembayaran', 'local');
+        if (! is_string($path) || ! Storage::disk('local')->exists($path)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['bukti_pembayaran' => 'File bukti pembayaran gagal disimpan. Silakan coba kembali.']);
+        }
+        try {
+            DB::transaction(function () use ($reservationSnapshot, $userId, $path, $locks) {
+                $reservation = $locks->lockReservation((int) $reservationSnapshot->id);
+                if ((int) $reservation->user_id !== $userId || $reservation->status !== 'approved') {
+                    throw new \RuntimeException('Reservasi tidak lagi memenuhi syarat pembayaran.');
+                }
+                $locks->lockUser($userId);
+                $rooms = $locks->lockAllRooms();
+                $placements = $locks->lockPlacementsForRoomsAndUser($rooms->modelKeys(), $userId);
 
-        // Simpan File ke Storage
-        $path = $request->file('bukti_pembayaran')->store('bukti_pembayaran', 'public');
-        $kodePembayaran = 'PAY-' . date('Y') . '-' . strtoupper(Str::random(4));
+                if ($reservation->jumlah_tagihan === null) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'pembayaran' => 'Tagihan belum memiliki durasi dan tarif yang terverifikasi. Hubungi Admin Asrama.',
+                    ]);
+                }
 
-        Pembayaran::create([
-            'kode_pembayaran'   => $kodePembayaran,
-            'reservasi_id'      => $reservasi->id,
-            'user_id'           => $user->id,
-            'jumlah_bayar'      => $reservasi->kamar->harga_bulanan ?? 850000,
-            'metode_pembayaran' => 'Bank Transfer (BNI)',
-            'bukti_pembayaran'  => $path,
-            'status'            => 'pending',
-        ]);
+                if (Pembayaran::query()->where('reservasi_id', $reservation->id)->whereIn('status', ['pending', 'paid'])->exists()) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'pembayaran' => 'Pembayaran reservasi ini sudah dikirim atau sudah lunas.',
+                    ]);
+                }
 
-        return redirect()->back()->with('success', 'Bukti pembayaran berhasil diunggah. Menunggu verifikasi admin.');
+                $hasPlacement = $placements->contains(fn ($placement) => (int) $placement->reservasi_id === (int) $reservation->id
+                    && in_array($placement->status, ['scheduled', 'active'], true));
+                $room = $rooms->firstWhere('id', $reservation->kamar_id);
+                if (!$hasPlacement || !$reservation->kamar_id || !$room) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'pembayaran' => 'Pembayaran belum dapat diajukan karena placement kamar belum tersedia. Hubungi Admin Asrama.',
+                    ]);
+                }
+
+                $payment = new Pembayaran();
+                $payment->kode_pembayaran = 'PAY-' . now()->format('Y') . '-' . strtoupper(Str::random(8));
+                $payment->reservasi_id = $reservation->id;
+                $payment->user_id = $userId;
+                $payment->jumlah_bayar = $reservation->jumlah_tagihan;
+                $payment->metode_pembayaran = 'Bank Transfer (BNI)';
+                $payment->bukti_pembayaran = $path;
+                $payment->status = 'pending';
+                $payment->save();
+            }, 3);
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($path);
+            throw $exception;
+        }
+
+        return back()->with('success', 'Bukti pembayaran tersimpan secara privat dan menunggu verifikasi.');
     }
 
-    /**
-     * Cetak kuitansi PDF berukuran A5 Landscape (Optimized)
-     */
-    public function cetakKuitansi($id)
+    public function cetakKuitansi(int $id)
     {
         $pembayaran = Pembayaran::with(['user', 'reservasi.kamar'])
-            ->where('user_id', auth()->id())
-            ->where('status', 'paid')
-            ->findOrFail($id);
-
-        // Convert Logo ke Base64 agar proses render instant tanpa I/O bottleneck
+            ->where('user_id', auth()->id())->where('status', 'paid')->findOrFail($id);
         $logoPath = public_path('image/Vertical-Logo.png');
-        $logoBase64 = '';
-        if (file_exists($logoPath)) {
-            $logoData = file_get_contents($logoPath);
-            $logoBase64 = 'data:image/png;base64,' . base64_encode($logoData);
-        }
-
-        $pdf = Pdf::loadView('penghuni.pembayaran.kuitansi_pdf', compact('pembayaran', 'logoBase64'))
-            ->setPaper('a5', 'landscape')
-            ->setOption([
-                'isRemoteEnabled'         => false,
-                'isHtml5ParserEnabled'    => true,
-                'isFontSubsettingEnabled' => true,
-                'dpi'                     => 96,
-            ]);
-
-        return $pdf->stream('Kuitansi-' . $pembayaran->kode_pembayaran . '.pdf');
+        $logoBase64 = is_file($logoPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath)) : '';
+        return Pdf::loadView('penghuni.pembayaran.kuitansi_pdf', compact('pembayaran', 'logoBase64'))
+            ->setPaper('a5', 'landscape')->setOption(['isRemoteEnabled' => false, 'isHtml5ParserEnabled' => true])->stream('Kuitansi-' . $pembayaran->kode_pembayaran . '.pdf');
     }
 }
