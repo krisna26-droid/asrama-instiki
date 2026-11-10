@@ -81,6 +81,7 @@ Route::middleware(['auth', 'role:admin_asrama'])->group(function () {
 
     Route::get('/admin/penghuni', [PenghuniController::class, 'index'])->name('admin.penghuni.index');
     Route::get('/admin/penghuni/{placement}', [PenghuniController::class, 'show'])->name('admin.penghuni.show');
+    Route::patch('/admin/penempatan/{placement}/jadwal-check-in', [PenghuniController::class, 'rescheduleCheckIn'])->name('admin.penempatan.check-in.schedule.update');
     Route::post('/admin/penempatan/{placement}/check-in', [PenghuniController::class, 'checkIn'])->name('admin.penempatan.check-in');
     Route::post('/admin/penempatan/{placement}/check-out', [PenghuniController::class, 'checkOut'])->name('admin.penempatan.check-out');
     Route::post('/admin/penempatan/{placement}/transfer', [PenghuniController::class, 'transfer'])->name('admin.penempatan.transfer');

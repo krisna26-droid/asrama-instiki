@@ -330,6 +330,9 @@
                             @elseif($extensionPayment?->status === 'paid')
                                 <p class="mt-3 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-900">Pembayaran sudah lunas.</p>
                             @else
+                                @if($extensionPayment?->status === 'rejected')
+                                    <p class="mb-2 rounded-lg bg-rose-50 p-3 text-xs text-rose-800">Pembayaran sebelumnya ditolak: {{ $extensionPayment->catatan_keuangan ?? 'Silakan periksa bukti dan unggah ulang.' }}</p>
+                                @endif
                                 @if(now()->toDateString() < $extension->tanggal_akhir_sebelum->toDateString())
                                     <form method="POST" action="{{ route('penghuni.perpanjangan.payment.store', $extension) }}" enctype="multipart/form-data" class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
                                         @csrf
@@ -342,8 +345,6 @@
                                     <p class="mt-3 text-xs font-medium text-rose-700">Batas pembayaran telah lewat. Perpanjangan tidak berlaku.</p>
                                 @endif
                             @endif
-                        @elseif($extensionPayment?->status === 'rejected')
-                            <p class="mt-2 text-xs text-rose-700">Catatan pembayaran: {{ $extensionPayment->catatan_keuangan ?? 'Pembayaran ditolak.' }}</p>
                         @endif
                     </article>
                 @endforeach

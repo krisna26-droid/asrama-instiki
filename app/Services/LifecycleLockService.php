@@ -15,6 +15,21 @@ use Illuminate\Support\Collection;
  */
 class LifecycleLockService
 {
+    /** @param array<int, int> $reservationIds */
+    public function lockReservations(array $reservationIds): Collection
+    {
+        $ids = collect($reservationIds)->map(fn ($id) => (int) $id)->unique()->sort()->values();
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return Reservasi::query()
+            ->whereIn('id', $ids)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+    }
+
     public function lockReservation(int $reservationId): Reservasi
     {
         return Reservasi::query()->whereKey($reservationId)->lockForUpdate()->firstOrFail();

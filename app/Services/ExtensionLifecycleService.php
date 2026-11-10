@@ -294,7 +294,7 @@ class ExtensionLifecycleService
 
             $placement->status = 'completed';
             $placement->save();
-            $this->completeReservationIfEnded($reservation, $placements);
+            $this->completeReservationIfEnded($reservation);
 
             return true;
         }, 3);
@@ -338,10 +338,10 @@ class ExtensionLifecycleService
                 $sibling->save();
             }
         }
-        $this->completeReservationIfEnded($reservation, $placements);
+        $this->completeReservationIfEnded($reservation);
     }
 
-    private function completeReservationIfEnded(Reservasi $reservation, $placements): void
+    private function completeReservationIfEnded(Reservasi $reservation): void
     {
         $allPlacements = PenempatanPenghuni::query()->where('reservasi_id', $reservation->id)->get();
         if ($allPlacements->isNotEmpty() && $allPlacements->every(fn ($item) => in_array($item->status, ['completed', 'cancelled'], true))) {

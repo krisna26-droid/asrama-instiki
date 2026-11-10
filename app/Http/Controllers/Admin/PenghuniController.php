@@ -67,6 +67,26 @@ class PenghuniController extends Controller
         return back()->with('success', 'Check-in berhasil dicatat.');
     }
 
+    public function rescheduleCheckIn(Request $request, PenempatanPenghuni $placement, ReservationLifecycleService $lifecycle)
+    {
+        $validated = $request->validate([
+            'tanggal_mulai' => ['required', 'date_format:Y-m-d'],
+            'tanggal_mulai_saat_form' => ['required', 'date_format:Y-m-d'],
+            'alasan' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $lifecycle->rescheduleCheckIn(
+            $placement->id,
+            $validated['tanggal_mulai'],
+            $validated['tanggal_mulai_saat_form'],
+            (int) auth()->id(),
+            $validated['alasan'],
+        );
+
+        return redirect()->route('admin.penghuni.show', $placement)
+            ->with('success', 'Jadwal check-in dan periode penempatan berhasil diperbarui setelah pemeriksaan kapasitas.');
+    }
+
     public function checkOut(Request $request, PenempatanPenghuni $placement, ReservationLifecycleService $lifecycle)
     {
         $validated = $request->validate(['alasan' => ['required', 'string', 'max:2000']]);

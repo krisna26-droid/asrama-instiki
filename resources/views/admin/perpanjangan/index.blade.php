@@ -93,11 +93,15 @@
                                         </form>
                                     </div>
                                 @elseif($extension->status === 'approved')
-                                    <form method="POST" action="{{ route('admin.perpanjangan.cancel', $extension) }}" onsubmit="return confirm('Batalkan persetujuan perpanjangan dan lepaskan komitmen kapasitas?')" class="space-y-2">
-                                        @csrf @method('PATCH')
-                                        <textarea name="catatan_admin" required maxlength="2000" rows="2" placeholder="Alasan pembatalan" class="w-full rounded-lg border-slate-300 text-xs"></textarea>
-                                        <button class="w-full rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-50">Batalkan persetujuan</button>
-                                    </form>
+                                    @if($extension->pembayarans->contains(fn ($payment) => in_array($payment->status, ['pending', 'paid'], true)))
+                                        <p class="max-w-xs text-xs text-amber-800">Pembayaran masih menunggu keputusan. Admin Keuangan perlu menuntaskannya sebelum persetujuan perpanjangan dibatalkan.</p>
+                                    @else
+                                        <form method="POST" action="{{ route('admin.perpanjangan.cancel', $extension) }}" onsubmit="return confirm('Batalkan persetujuan perpanjangan dan lepaskan komitmen kapasitas?')" class="space-y-2">
+                                            @csrf @method('PATCH')
+                                            <textarea name="catatan_admin" required maxlength="2000" rows="2" placeholder="Alasan pembatalan" class="w-full rounded-lg border-slate-300 text-xs"></textarea>
+                                            <button class="w-full rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-50">Batalkan persetujuan</button>
+                                        </form>
+                                    @endif
                                 @else
                                     <span class="text-xs text-slate-500">Tidak ada tindakan</span>
                                 @endif

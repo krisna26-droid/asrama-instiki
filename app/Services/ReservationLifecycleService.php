@@ -125,13 +125,29 @@ class ReservationLifecycleService
     {
         return DB::transaction(function () use ($placementId, $actorId) {
             $placementSnapshot = PenempatanPenghuni::query()->findOrFail($placementId);
-            $reservation = $this->locks->lockReservation((int) $placementSnapshot->reservasi_id);
-            $this->locks->lockUser((int) $placementSnapshot->user_id);
-            $this->locks->lockAllRooms();
-            $placement = PenempatanPenghuni::query()->whereKey($placementId)->lockForUpdate()->firstOrFail();
-            $extensions = $this->locks->lockExtensionsForPlacements([$placementId]);
+            $relatedReservationIds = PenempatanPenghuni::query()
+                ->where(function ($query) use ($placementSnapshot) {
+                    $query->where('user_id', $placementSnapshot->user_id)
+                        ->orWhere('kamar_id', $placementSnapshot->kamar_id);
+                })
+                ->pluck('reservasi_id')
+                ->push((int) $placementSnapshot->reservasi_id)
+                ->merge(Reservasi::query()->where('user_id', $placementSnapshot->user_id)->pluck('id'))
+                ->all();
+            $reservations = $this->locks->lockReservations($relatedReservationIds);
+            $reservation = $reservations->firstWhere('id', (int) $placementSnapshot->reservasi_id);
+            if (!$reservation) {
+                throw ValidationException::withMessages(['placement' => 'Reservasi penempatan tidak ditemukan.']);
+            }
 
-            if ($placement->status !== 'scheduled' || $placement->check_in_at || $reservation->status !== 'approved') {
+            $this->locks->lockUser((int) $placementSnapshot->user_id);
+            $rooms = $this->locks->lockAllRooms();
+            $placements = $this->locks->lockPlacementsForRoomsAndUser($rooms->modelKeys(), (int) $placementSnapshot->user_id);
+            $extensions = $this->locks->lockExtensionsForPlacements($placements->modelKeys());
+            $placement = $placements->firstWhere('id', $placementId);
+            $room = $placement ? $rooms->firstWhere('id', (int) $placement->kamar_id) : null;
+
+            if (!$placement || !$room || $placement->status !== 'scheduled' || $placement->check_in_at || $reservation->status !== 'approved') {
                 throw ValidationException::withMessages(['placement' => 'Penempatan ini tidak dapat check-in.']);
             }
 
@@ -139,10 +155,185 @@ class ReservationLifecycleService
                 throw ValidationException::withMessages(['placement' => 'Check-in hanya dapat dicatat setelah pembayaran reservasi diverifikasi lunas oleh Admin Keuangan.']);
             }
 
+            $timezone = (string) config('app.timezone', 'UTC');
+            $now = CarbonImmutable::now($timezone);
+            $actualDate = $now->toDateString();
+            $currentStart = $placement->tanggal_mulai->toDateString();
+            $plannedEnd = $placement->tanggal_akhir->toDateString();
+            if ($actualDate >= $plannedEnd) {
+                throw ValidationException::withMessages(['placement' => 'Tanggal periode reservasi sudah berakhir; placement tidak dapat check-in.']);
+            }
+
+            if ($actualDate < $currentStart) {
+                if ($placement->transfer_dari_id !== null) {
+                    throw ValidationException::withMessages(['placement' => 'Check-in lebih awal untuk transfer harus diproses melalui workflow transfer.']);
+                }
+
+                $months = $reservation->durasi_bulan;
+                $actualStartDate = CarbonImmutable::createFromFormat('!Y-m-d', $actualDate, $timezone);
+                if ($months !== null && $months >= 1 && $months <= 12) {
+                    $newEnd = $actualStartDate->addMonthsNoOverflow((int) $months)->toDateString();
+                } else {
+                    $oldStartDate = CarbonImmutable::createFromFormat('!Y-m-d', $currentStart, $timezone);
+                    $oldEndDate = CarbonImmutable::createFromFormat('!Y-m-d', $plannedEnd, $timezone);
+                    $newEnd = $actualStartDate->addDays((int) $oldStartDate->diffInDays($oldEndDate))->toDateString();
+                }
+
+                foreach ($placements->where('user_id', $placement->user_id) as $other) {
+                    if ((int) $other->id === (int) $placement->id || !in_array($other->status, ['scheduled', 'active', 'no_show'], true)) {
+                        continue;
+                    }
+                    $extensionEnd = $extensions
+                        ->where('penempatan_id', $other->id)
+                        ->where('status', 'approved')
+                        ->max(fn ($extension) => $extension->tanggal_akhir_diajukan->toDateString());
+                    $otherEnd = max($this->effectiveEnd($other), $extensionEnd ?? '0000-00-00');
+                    if ($other->tanggal_mulai->toDateString() < $newEnd && $otherEnd > $actualDate) {
+                        throw ValidationException::withMessages(['placement' => 'Periode check-in lebih awal bertumpang tindih dengan placement lain milik penghuni.']);
+                    }
+                }
+
+                $otherPlacements = $placements->reject(fn ($other) => (int) $other->id === (int) $placement->id);
+                if (!$this->occupancy->canFit($room, $otherPlacements, $actualDate, $newEnd)) {
+                    throw ValidationException::withMessages(['placement' => 'Kapasitas kamar tidak cukup untuk menggeser periode check-in ke tanggal hari ini.']);
+                }
+
+                $placement->tanggal_mulai = $actualDate;
+                $placement->tanggal_akhir = $newEnd;
+                $reservation->tanggal_mulai_disetujui = $actualDate;
+                $reservation->tanggal_akhir_disetujui = $newEnd;
+                $entry = sprintf(
+                    'Check-in lebih awal oleh admin #%d pada %s; periode bergeser dari %s–%s menjadi %s–%s. Durasi dan nominal tagihan dipertahankan.',
+                    $actorId,
+                    $now->format('Y-m-d H:i:s T'),
+                    $currentStart,
+                    $plannedEnd,
+                    $actualDate,
+                    $newEnd,
+                );
+                $placement->catatan_lifecycle = trim(($placement->catatan_lifecycle ? $placement->catatan_lifecycle . "\n" : '') . $entry);
+                $reservation->save();
+            }
+
             $placement->status = 'active';
-            $placement->check_in_at = now();
+            $placement->check_in_at = $now;
             $placement->check_in_oleh = $actorId;
             $placement->save();
+
+            return $placement;
+        }, 3);
+    }
+
+    public function rescheduleCheckIn(
+        int $placementId,
+        string $newStart,
+        string $expectedStart,
+        int $actorId,
+        string $reason,
+    ): PenempatanPenghuni {
+        $snapshot = PenempatanPenghuni::query()->findOrFail($placementId);
+
+        return DB::transaction(function () use ($snapshot, $placementId, $newStart, $expectedStart, $actorId, $reason) {
+            // Gather related parent IDs without locks, then acquire all locks in canonical order.
+            $relatedReservationIds = PenempatanPenghuni::query()
+                ->where(function ($query) use ($snapshot) {
+                    $query->where('user_id', $snapshot->user_id)
+                        ->orWhere('kamar_id', $snapshot->kamar_id);
+                })
+                ->pluck('reservasi_id')
+                ->push((int) $snapshot->reservasi_id)
+                ->merge(Reservasi::query()->where('user_id', $snapshot->user_id)->pluck('id'))
+                ->all();
+
+            $reservations = $this->locks->lockReservations($relatedReservationIds);
+            $reservation = $reservations->firstWhere('id', (int) $snapshot->reservasi_id);
+            if (!$reservation) {
+                throw ValidationException::withMessages(['placement' => 'Reservasi penempatan tidak ditemukan.']);
+            }
+
+            $this->locks->lockUser((int) $snapshot->user_id);
+            $rooms = $this->locks->lockAllRooms();
+            $placements = $this->locks->lockPlacementsForRoomsAndUser($rooms->modelKeys(), (int) $snapshot->user_id);
+            $extensions = $this->locks->lockExtensionsForPlacements($placements->modelKeys());
+            $placement = $placements->firstWhere('id', $placementId);
+            $room = $placement ? $rooms->firstWhere('id', (int) $placement->kamar_id) : null;
+
+            if (!$placement || !$room || $reservation->status !== 'approved'
+                || $placement->status !== 'scheduled' || $placement->check_in_at
+                || $placement->transfer_dari_id !== null) {
+                throw ValidationException::withMessages(['placement' => 'Jadwal hanya dapat diubah untuk placement awal yang masih menunggu check-in.']);
+            }
+
+            $currentStart = $placement->tanggal_mulai->toDateString();
+            if ($currentStart !== $expectedStart) {
+                throw ValidationException::withMessages(['tanggal_mulai' => 'Jadwal telah diubah oleh admin lain. Muat ulang halaman sebelum mencoba lagi.']);
+            }
+            if ($newStart === $currentStart) {
+                throw ValidationException::withMessages(['tanggal_mulai' => 'Pilih tanggal yang berbeda dari jadwal saat ini.']);
+            }
+
+            $timezone = (string) config('app.timezone', 'UTC');
+            $today = CarbonImmutable::now($timezone)->toDateString();
+            if ($currentStart < $today || $newStart < $today) {
+                throw ValidationException::withMessages(['tanggal_mulai' => 'Jadwal yang sudah terlewat harus ditangani melalui alur no-show, dan jadwal baru harus hari ini atau setelahnya.']);
+            }
+
+            $startDate = CarbonImmutable::createFromFormat('!Y-m-d', $newStart, $timezone);
+            if (!$startDate || $startDate->format('Y-m-d') !== $newStart) {
+                throw ValidationException::withMessages(['tanggal_mulai' => 'Tanggal check-in tidak valid.']);
+            }
+
+            $oldEnd = $placement->tanggal_akhir->toDateString();
+            $months = $reservation->durasi_bulan;
+            if ($months !== null && $months >= 1 && $months <= 12) {
+                $newEnd = $startDate->addMonthsNoOverflow((int) $months)->toDateString();
+            } else {
+                $oldStartDate = CarbonImmutable::createFromFormat('!Y-m-d', $currentStart, $timezone);
+                $oldEndDate = CarbonImmutable::createFromFormat('!Y-m-d', $oldEnd, $timezone);
+                $durationDays = (int) $oldStartDate->diffInDays($oldEndDate);
+                $newEnd = $startDate->addDays($durationDays)->toDateString();
+            }
+
+            if ($newStart >= $newEnd) {
+                throw ValidationException::withMessages(['tanggal_mulai' => 'Tanggal akhir hasil penjadwalan harus setelah tanggal mulai.']);
+            }
+
+            foreach ($placements->where('user_id', $placement->user_id) as $other) {
+                if ($other->id === $placement->id || !in_array($other->status, ['scheduled', 'active', 'no_show'], true)) {
+                    continue;
+                }
+                $extensionEnd = $extensions
+                    ->where('penempatan_id', $other->id)
+                    ->where('status', 'approved')
+                    ->max(fn ($extension) => $extension->tanggal_akhir_diajukan->toDateString());
+                $otherEnd = max($this->effectiveEnd($other), $extensionEnd ?? '0000-00-00');
+                if ($other->tanggal_mulai->toDateString() < $newEnd && $otherEnd > $newStart) {
+                    throw ValidationException::withMessages(['tanggal_mulai' => 'Penghuni memiliki placement lain yang bertumpang tindih pada tanggal baru.']);
+                }
+            }
+
+            $otherPlacements = $placements->reject(fn ($other) => (int) $other->id === (int) $placement->id);
+            if (!$this->occupancy->canFit($room, $otherPlacements, $newStart, $newEnd)) {
+                throw ValidationException::withMessages(['tanggal_mulai' => 'Kapasitas kamar tidak cukup untuk periode setelah jadwal check-in diubah.']);
+            }
+
+            $now = CarbonImmutable::now($timezone);
+            $placement->tanggal_mulai = $newStart;
+            $placement->tanggal_akhir = $newEnd;
+            $entry = sprintf(
+                'Jadwal check-in diubah oleh admin #%d pada %s dari %s menjadi %s. Alasan: %s',
+                $actorId,
+                $now->format('Y-m-d H:i:s T'),
+                $currentStart,
+                $newStart,
+                trim($reason),
+            );
+            $placement->catatan_lifecycle = trim(($placement->catatan_lifecycle ? $placement->catatan_lifecycle . "\n" : '') . $entry);
+            $placement->save();
+
+            $reservation->tanggal_mulai_disetujui = $newStart;
+            $reservation->tanggal_akhir_disetujui = $newEnd;
+            $reservation->save();
 
             return $placement;
         }, 3);

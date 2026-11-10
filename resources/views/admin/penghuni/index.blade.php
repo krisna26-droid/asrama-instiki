@@ -148,7 +148,11 @@
                                                     <span class="block">Kamar {{ $placement->kamar->nomor_kamar ?? '—' }} · {{ $placement->tanggal_mulai->format('d M Y') }} – {{ $placement->tanggal_akhir->format('d M Y') }}</span>
                                                 </div>
 
-                                                <p class="text-sm text-slate-600">Catat check-in penghuni ini? Waktu check-in akan tersimpan saat ini.</p>
+                                                @if($placement->tanggal_mulai->toDateString() > now()->toDateString())
+                                                    <p class="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">Tanggal ini lebih awal dari jadwal. Setelah kapasitas diperiksa, sistem memulai periode pada hari ini dan menggeser tanggal akhir agar durasi serta nominal tagihan tetap.</p>
+                                                @else
+                                                    <p class="text-sm text-slate-600">Catat check-in penghuni ini? Waktu check-in aktual akan tersimpan saat ini.</p>
+                                                @endif
 
                                                 <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
                                                     <button type="button" @click="open = false" class="rounded-lg border border-slate-300 px-4 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50">Batal</button>
@@ -156,6 +160,10 @@
                                                 </div>
                                             </form>
                                         </x-admin.modal>
+                                    @elseif($placement->status === 'scheduled' && $placement->tanggal_mulai->toDateString() > now()->toDateString())
+                                        <span class="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800">Jadwal check-in {{ $placement->tanggal_mulai->format('d M Y') }}</span>
+                                    @elseif($placement->status === 'scheduled' && $placement->tanggal_mulai->toDateString() < now()->toDateString())
+                                        <span class="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-800">Jadwal terlewat · perlu tindak lanjut</span>
                                     @elseif($placement->status === 'scheduled')
                                         <span class="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800">Menunggu pembayaran lunas sebelum check-in</span>
                                     @endif
