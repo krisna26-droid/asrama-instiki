@@ -179,13 +179,20 @@
         <tbody>
             <tr>
                 <td>
-                    Sewa Kamar Asrama
-                    @if($pembayaran->reservasi?->durasi_bulan && $pembayaran->reservasi?->tarif_bulanan_disetujui !== null && $pembayaran->reservasi?->jumlah_tagihan !== null)
+                    @if($pembayaran->perpanjangan)
+                        Perpanjangan Sewa Kamar Asrama
+                        <br><small>{{ $pembayaran->perpanjangan->durasi_bulan }} bulan · Kamar {{ $pembayaran->perpanjangan->penempatan?->kamar?->nomor_kamar ?? '—' }} · Rp {{ number_format($pembayaran->perpanjangan->tarif_bulanan, 0, ',', '.') }}/bulan</small>
+                    @else
+                        Sewa Kamar Asrama
+                    @endif
+                    @if(!$pembayaran->perpanjangan && $pembayaran->reservasi?->durasi_bulan && $pembayaran->reservasi?->tarif_bulanan_disetujui !== null && $pembayaran->reservasi?->jumlah_tagihan !== null)
                         <br><small>{{ $pembayaran->reservasi->durasi_bulan }} bulan · Rp {{ number_format($pembayaran->reservasi->tarif_bulanan_disetujui, 0, ',', '.') }}/bulan</small>
                     @endif
                 </td>
                 <td>
-                    @if($pembayaran->reservasi?->tanggal_mulai_disetujui && $pembayaran->reservasi?->tanggal_akhir_disetujui)
+                    @if($pembayaran->perpanjangan)
+                        {{ $pembayaran->perpanjangan->tanggal_akhir_sebelum->format('d M Y') }} – {{ $pembayaran->perpanjangan->tanggal_akhir_diajukan->format('d M Y') }}
+                    @elseif($pembayaran->reservasi?->tanggal_mulai_disetujui && $pembayaran->reservasi?->tanggal_akhir_disetujui)
                         {{ $pembayaran->reservasi->tanggal_mulai_disetujui->format('d M Y') }} – {{ $pembayaran->reservasi->tanggal_akhir_disetujui->format('d M Y') }}
                     @else
                         {{ \Carbon\Carbon::parse($pembayaran->created_at)->format('F Y') }}

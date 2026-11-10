@@ -33,7 +33,14 @@
                             <td class="py-3.5 px-4 font-mono text-slate-500 font-medium">{{ $item->kode_pembayaran }}</td>
                             <td class="py-3.5 px-4 font-bold text-slate-900">{{ $item->user->nama ?? '-' }}</td>
                             <td class="py-3.5 px-4 font-bold text-slate-900">Rp {{ number_format($item->jumlah_bayar, 0, ',', '.') }}</td>
-                            <td class="py-3.5 px-4 text-slate-600">{{ \Carbon\Carbon::parse($item->created_at)->format('F Y') }}</td>
+                            <td class="py-3.5 px-4 text-slate-600">
+                                @if($item->perpanjangan)
+                                    <span class="block font-semibold">Perpanjangan {{ $item->perpanjangan->durasi_bulan }} bulan</span>
+                                    <span class="block text-xs text-slate-500">{{ $item->perpanjangan->tanggal_akhir_sebelum->format('d M Y') }} – {{ $item->perpanjangan->tanggal_akhir_diajukan->format('d M Y') }}</span>
+                                @else
+                                    {{ \Carbon\Carbon::parse($item->created_at)->format('F Y') }}
+                                @endif
+                            </td>
                             <td class="py-3.5 px-4 text-slate-600">{{ $item->metode_pembayaran }}</td>
                             <td class="py-3.5 px-4 text-slate-500 font-mono text-xs">{{ \Carbon\Carbon::parse($item->updated_at)->format('Y-m-d') }}</td>
                             <td class="py-3.5 px-4 flex items-center gap-2">

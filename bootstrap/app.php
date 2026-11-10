@@ -12,6 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withCommands([
         \App\Console\Commands\CreateStaffAccount::class,
+        \App\Console\Commands\CompleteEndedPlacements::class,
     ])
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->appendToGroup('web', [\App\Http\Middleware\EnsureActiveAccount::class]);

@@ -10,6 +10,8 @@ use App\Http\Controllers\Admin\ReservasiController;
 use App\Http\Controllers\Admin\PenghuniController;
 use App\Http\Controllers\Admin\LaporanController;
 use App\Http\Controllers\Admin\AkunPenghuniController;
+use App\Http\Controllers\Admin\KontenAsramaController;
+use App\Http\Controllers\Admin\PerpanjanganController as AdminPerpanjanganController;
 
 // Controller Admin Keuangan
 use App\Http\Controllers\Keuangan\DashboardController as KeuanganDashboardController;
@@ -21,13 +23,12 @@ use App\Http\Controllers\Penghuni\DashboardController as PenghuniDashboardContro
 use App\Http\Controllers\Penghuni\KamarController as PenghuniKamarController;
 use App\Http\Controllers\Penghuni\ReservasiController as PenghuniReservasiController;
 use App\Http\Controllers\Penghuni\PembayaranController as PenghuniPembayaranController;
+use App\Http\Controllers\Penghuni\PerpanjanganController as PenghuniPerpanjanganController;
 use App\Http\Controllers\DocumentController;
-use App\Models\Kamar;
-use App\Services\RoomOccupancyService;
+use App\Http\Controllers\PublicAsramaController;
 
-Route::get('/', function (RoomOccupancyService $occupancy) {
-    return view('welcome', $occupancy->currentCapacitySummary());
-});
+Route::get('/', [PublicAsramaController::class, 'index'])->name('home');
+Route::get('/asrama/detail', [PublicAsramaController::class, 'showDetails'])->name('asrama.detail');
 
 Route::middleware('auth')->get('/dokumen/ktp/{reservasi}', [DocumentController::class, 'ktp'])->name('dokumen.ktp');
 Route::middleware('auth')->get('/dokumen/pembayaran/{pembayaran}', [DocumentController::class, 'paymentProof'])->name('dokumen.pembayaran');
@@ -46,6 +47,8 @@ Route::middleware(['auth', 'role:penghuni'])->group(function () {
     // Pembayaran & Cetak Kuitansi
     Route::get('/penghuni/pembayaran', [PenghuniPembayaranController::class, 'index'])->name('penghuni.pembayaran.index');
     Route::post('/penghuni/pembayaran', [PenghuniPembayaranController::class, 'store'])->name('penghuni.pembayaran.store');
+    Route::post('/penghuni/perpanjangan/{placement}', [PenghuniPerpanjanganController::class, 'store'])->name('penghuni.perpanjangan.store');
+    Route::post('/penghuni/perpanjangan/{extension}/pembayaran', [PenghuniPembayaranController::class, 'storeExtension'])->name('penghuni.perpanjangan.payment.store');
     Route::get('/penghuni/pembayaran/{id}/kuitansi', [PenghuniPembayaranController::class, 'cetakKuitansi'])->name('penghuni.pembayaran.kuitansi');
     Route::get('/password/first-login', [\App\Http\Controllers\Auth\FirstLoginPasswordController::class, 'edit'])->withoutMiddleware('password.changed')->name('password.first-login');
     Route::put('/password/first-login', [\App\Http\Controllers\Auth\FirstLoginPasswordController::class, 'update'])->withoutMiddleware('password.changed')->name('password.first-login.update');
@@ -54,6 +57,11 @@ Route::middleware(['auth', 'role:penghuni'])->group(function () {
 // 2. Rute Khusus Admin Asrama
 Route::middleware(['auth', 'role:admin_asrama'])->group(function () {
     Route::get('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
+    Route::get('/admin/konten-asrama', [KontenAsramaController::class, 'index'])->name('admin.konten-asrama.index');
+    Route::put('/admin/konten-asrama/kontak', [KontenAsramaController::class, 'updateContact'])->name('admin.konten-asrama.contact.update');
+    Route::post('/admin/konten-asrama/fasilitas', [KontenAsramaController::class, 'storeFacility'])->name('admin.konten-asrama.fasilitas.store');
+    Route::put('/admin/konten-asrama/fasilitas/{facility}', [KontenAsramaController::class, 'updateFacility'])->name('admin.konten-asrama.fasilitas.update');
+    Route::patch('/admin/konten-asrama/fasilitas/{facility}/toggle', [KontenAsramaController::class, 'toggleFacility'])->name('admin.konten-asrama.fasilitas.toggle');
     Route::get('/admin/akun-penghuni', [AkunPenghuniController::class, 'index'])->name('admin.akun-penghuni.index');
     Route::post('/admin/akun-penghuni', [AkunPenghuniController::class, 'store'])->name('admin.akun-penghuni.store');
     Route::put('/admin/akun-penghuni/{user}', [AkunPenghuniController::class, 'update'])->name('admin.akun-penghuni.update');
@@ -63,6 +71,10 @@ Route::middleware(['auth', 'role:admin_asrama'])->group(function () {
     Route::patch('/admin/kamar/{kamar}/toggle-active', [KamarController::class, 'toggleActive'])->name('admin.kamar.toggle-active');
 
     Route::get('/admin/reservasi', [ReservasiController::class, 'index'])->name('admin.reservasi.index');
+    Route::get('/admin/perpanjangan', [AdminPerpanjanganController::class, 'index'])->name('admin.perpanjangan.index');
+    Route::patch('/admin/perpanjangan/{extension}/approve', [AdminPerpanjanganController::class, 'approve'])->name('admin.perpanjangan.approve');
+    Route::patch('/admin/perpanjangan/{extension}/reject', [AdminPerpanjanganController::class, 'reject'])->name('admin.perpanjangan.reject');
+    Route::patch('/admin/perpanjangan/{extension}/cancel', [AdminPerpanjanganController::class, 'cancel'])->name('admin.perpanjangan.cancel');
     Route::patch('/admin/reservasi/{reservasi}/approve', [ReservasiController::class, 'approve'])->name('admin.reservasi.approve');
     Route::patch('/admin/reservasi/{reservasi}/verify-legacy', [ReservasiController::class, 'verifyLegacy'])->name('admin.reservasi.verify-legacy');
     Route::patch('/admin/reservasi/{reservasi}/reject', [ReservasiController::class, 'reject'])->name('admin.reservasi.reject');

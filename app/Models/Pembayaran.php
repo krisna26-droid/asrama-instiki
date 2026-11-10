@@ -29,6 +29,11 @@ class Pembayaran extends Model
         return $this->belongsTo(Reservasi::class);
     }
 
+    public function perpanjangan()
+    {
+        return $this->belongsTo(PerpanjanganPenempatan::class, 'perpanjangan_id');
+    }
+
     public function diputuskanOleh()
     {
         return $this->belongsTo(User::class, 'diputuskan_oleh');

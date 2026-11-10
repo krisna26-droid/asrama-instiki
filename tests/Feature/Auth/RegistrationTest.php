@@ -21,13 +21,23 @@ class RegistrationTest extends TestCase
         $response = $this->post('/register', [
             'nama' => 'Test User',
             'nim_nik' => '2201019999',
+            'nik' => '3201010101010001',
+            'jenis_kelamin' => 'putra',
             'no_telepon' => '081234567890',
             'email' => 'test@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'role' => 'admin_asrama',
         ]);
 
         $this->assertAuthenticated();
         $response->assertRedirect(route('dashboard', absolute: false));
+        $this->assertDatabaseHas('users', [
+            'nim_nik' => '2201019999',
+            'nik' => '3201010101010001',
+            'role' => 'penghuni',
+            'is_active' => true,
+            'must_change_password' => false,
+        ]);
     }
 }

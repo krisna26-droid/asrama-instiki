@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Penghuni;
 
 use App\Http\Controllers\Controller;
 use App\Models\Pembayaran;
+use App\Models\PerpanjanganPenempatan;
+use App\Models\PenempatanPenghuni;
 use App\Models\Reservasi;
+use App\Services\ExtensionLifecycleService;
 use App\Services\LifecycleLockService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -25,10 +28,16 @@ class PembayaranController extends Controller
             $reservasi = null;
         }
         $pembayaranAktif = $reservasi
-            ? Pembayaran::query()->where('reservasi_id', $reservasi->id)->latest()->first()
+            ? Pembayaran::query()->where('reservasi_id', $reservasi->id)->whereNull('perpanjangan_id')->latest()->first()
             : null;
-        $riwayatPembayaran = Pembayaran::query()->where('user_id', $userId)->latest()->paginate(10)->withQueryString();
-        return view('penghuni.pembayaran.index', compact('reservasi', 'pembayaranAktif', 'riwayatPembayaran'));
+        $riwayatPembayaran = Pembayaran::query()->with('perpanjangan')->where('user_id', $userId)->latest()->paginate(10)->withQueryString();
+        $activePlacement = PenempatanPenghuni::query()->with('kamar')
+            ->where('user_id', $userId)->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')
+            ->latest('id')->first();
+        $extensions = PerpanjanganPenempatan::query()->with(['penempatan.kamar', 'pembayarans'])
+            ->where('user_id', $userId)->latest()->limit(10)->get();
+
+        return view('penghuni.pembayaran.index', compact('reservasi', 'pembayaranAktif', 'riwayatPembayaran', 'activePlacement', 'extensions'));
     }
 
     public function store(Request $request, LifecycleLockService $locks)
@@ -63,6 +72,7 @@ class PembayaranController extends Controller
                 $locks->lockUser($userId);
                 $rooms = $locks->lockAllRooms();
                 $placements = $locks->lockPlacementsForRoomsAndUser($rooms->modelKeys(), $userId);
+                $locks->lockExtensionsForPlacements($placements->modelKeys());
 
                 if ($reservation->jumlah_tagihan === null) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
@@ -70,7 +80,7 @@ class PembayaranController extends Controller
                     ]);
                 }
 
-                if (Pembayaran::query()->where('reservasi_id', $reservation->id)->whereIn('status', ['pending', 'paid'])->exists()) {
+                if (Pembayaran::query()->where('reservasi_id', $reservation->id)->whereNull('perpanjangan_id')->whereIn('status', ['pending', 'paid'])->exists()) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
                         'pembayaran' => 'Pembayaran reservasi ini sudah dikirim atau sudah lunas.',
                     ]);
@@ -103,9 +113,32 @@ class PembayaranController extends Controller
         return back()->with('success', 'Bukti pembayaran tersimpan secara privat dan menunggu verifikasi.');
     }
 
+    public function storeExtension(Request $request, PerpanjanganPenempatan $extension, ExtensionLifecycleService $lifecycle)
+    {
+        $request->validate(['bukti_pembayaran' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120']]);
+        $file = $request->file('bukti_pembayaran');
+        if (!$file || !$file->isValid()) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['bukti_pembayaran' => 'File bukti pembayaran gagal diterima. Silakan pilih ulang file.']);
+        }
+
+        $path = $file->store('bukti-pembayaran', 'local');
+        if (!is_string($path) || !Storage::disk('local')->exists($path)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['bukti_pembayaran' => 'File bukti pembayaran gagal disimpan. Silakan coba kembali.']);
+        }
+
+        try {
+            $lifecycle->createPayment($extension->id, (int) $request->user()->id, $path);
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($path);
+            throw $exception;
+        }
+
+        return back()->with('success', 'Bukti pembayaran perpanjangan tersimpan secara privat dan menunggu verifikasi Admin Keuangan.');
+    }
+
     public function cetakKuitansi(int $id)
     {
-        $pembayaran = Pembayaran::with(['user', 'reservasi.kamar'])
+        $pembayaran = Pembayaran::with(['user', 'reservasi.kamar', 'perpanjangan.penempatan.kamar'])
             ->where('user_id', auth()->id())->where('status', 'paid')->findOrFail($id);
         $logoPath = public_path('image/Vertical-Logo.png');
         $logoBase64 = is_file($logoPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath)) : '';

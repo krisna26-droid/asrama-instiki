@@ -34,4 +34,5 @@ class PenempatanPenghuni extends Model
     public function transferKe(): HasMany { return $this->hasMany(self::class, 'transfer_dari_id'); }
     public function checkInOleh(): BelongsTo { return $this->belongsTo(User::class, 'check_in_oleh'); }
     public function checkOutOleh(): BelongsTo { return $this->belongsTo(User::class, 'check_out_oleh'); }
+    public function perpanjangans(): HasMany { return $this->hasMany(PerpanjanganPenempatan::class, 'penempatan_id'); }
 }

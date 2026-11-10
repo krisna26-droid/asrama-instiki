@@ -10,6 +10,8 @@
          'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
         ['key' => 'pembayaran', 'label' => 'Pembayaran', 'route' => 'penghuni.pembayaran.index',
          'icon' => 'M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
+        ['key' => 'informasi-asrama', 'label' => 'Informasi Asrama', 'route' => 'asrama.detail',
+         'icon' => 'M3 10.5 12 3l9 7.5M5 9v11h14V9M9 20v-6h6v6'],
         ['key' => 'profil', 'label' => 'Profil Saya', 'route' => 'profile.edit',
          'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
     ];

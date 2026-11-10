@@ -5,6 +5,27 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Sistem Informasi Pengelolaan & Reservasi Asrama INSTIKI</title>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        <style>
+            /* Galeri */
+            .gal-tile img { transition: transform .5s ease; }
+            .gal-tile:hover img { transform: scale(1.06); }
+            .gal-cap { opacity: 0; transform: translateY(.5rem); transition: opacity .3s ease, transform .3s ease; }
+            .gal-tile:hover .gal-cap, .gal-tile:focus-within .gal-cap { opacity: 1; transform: none; }
+            .gal-pill { transition: background-color .2s ease, border-color .2s ease; }
+            .gal-tile:hover .gal-pill, .gal-tile:focus-visible .gal-pill { background: #ed1c24; border-color: #ed1c24; }
+            @media (hover: none) { .gal-cap { opacity: 1; transform: none; } }
+
+            /* Kontak */
+            .lift { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+            .lift:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -8px rgba(15, 23, 42, .18); border-color: #cbd5e1; }
+            .contact-icon { transition: background-color .2s ease, color .2s ease; }
+            .lift:hover .contact-icon { background: #ed1c24; color: #fff; }
+
+            @media (prefers-reduced-motion: reduce) {
+                .gal-tile img, .gal-cap, .gal-pill, .lift, .contact-icon { transition: none; }
+                .gal-tile:hover img, .lift:hover { transform: none; }
+            }
+        </style>
     </head>
     <body class="bg-white text-slate-900 font-sans antialiased selection:bg-[#ed1c24] selection:text-white">
 
@@ -21,7 +42,7 @@
                 </div>
 
                 <!-- Action Buttons -->
-                <div class="flex items-center space-x-2 sm:space-x-4">
+                <div class="flex items-center gap-2 sm:gap-3">
                     @auth
                         @php
                             $role = auth()->user()->role;
@@ -34,7 +55,8 @@
                         @endphp
                         <a href="{{ url($targetUrl) }}" class="px-4 py-2 bg-[#ed1c24] text-white text-xs sm:text-sm font-semibold rounded hover:bg-red-700 transition">Dashboard Saya</a>
                     @else
-                        <a href="{{ route('login') }}" class="px-3 py-2 text-slate-700 text-xs sm:text-sm font-semibold hover:text-[#ed1c24] transition">Log in</a>
+                        <a href="{{ route('login') }}" class="rounded px-3 py-2 text-xs font-semibold text-slate-700 transition hover:text-[#ed1c24] sm:text-sm">Login</a>
+                        <a href="{{ route('register') }}" class="rounded bg-[#ed1c24] px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700 sm:px-4 sm:text-sm">Registrasi</a>
                     @endauth
                 </div>
             </div>
@@ -95,6 +117,122 @@
                         <p class="text-lg font-bold leading-tight sm:text-xl">{{ $schemaReady ? number_format($penghuniAktif) : '—' }}</p>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        {{-- Galeri fasilitas dan informasi kontak --}}
+        @php
+            // Maksimal 2 foto fasilitas; sisanya diisi foto bawaan supaya kolase tetap penuh
+            $tiles = $facilities->take(2)->map(fn ($f) => [
+                'src'     => '/storage/' . ltrim($f->gambar_path, '/'),
+                'title'   => $f->judul,
+                'caption' => $f->caption,
+            ])->values()->all();
+
+            $fallbackTiles = [
+                ['src' => asset('image/asrama-bg.png'), 'title' => 'Tampilan Asrama', 'caption' => 'Bangunan Asrama Kampus INSTIKI'],
+                ['src' => asset('image/asrama-background.jpg'), 'title' => 'Suasana Asrama', 'caption' => 'Lingkungan di sekitar asrama'],
+            ];
+            while (count($tiles) < 2) {
+                $tiles[] = $fallbackTiles[count($tiles)];
+            }
+
+            $whatsappNumber = preg_replace('/\D+/', '', $contact?->whatsapp ?? '');
+            if (str_starts_with($whatsappNumber, '0')) {
+                $whatsappNumber = '62' . substr($whatsappNumber, 1);
+            }
+        @endphp
+
+        <section id="tentang-asrama" class="scroll-mt-24 bg-slate-50 py-16 sm:py-20">
+            <div class="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:items-center lg:gap-16 lg:px-8">
+
+                <!-- Galeri -->
+                <div>
+                    <span class="text-xs font-bold uppercase tracking-[0.2em] text-[#ed1c24]">Lihat lebih dekat</span>
+                    <h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Ruang nyaman untuk bertumbuh</h2>
+                    <p class="mt-3 max-w-xl text-sm leading-6 text-slate-600">Kenali fasilitas dan suasana Asrama Kampus INSTIKI.</p>
+
+                    <div class="mt-7 grid grid-cols-2 gap-3" style="grid-template-rows: repeat(2, minmax(11rem, 1fr)); min-height: 24rem;">
+                        @foreach($tiles as $tile)
+                            <figure class="gal-tile relative overflow-hidden rounded-xl bg-slate-200 shadow-sm" style="{{ $loop->first ? 'grid-row: span 2 / span 2;' : '' }}">
+                                <img src="{{ $tile['src'] }}" alt="{{ $tile['title'] }}" class="absolute inset-0 h-full w-full object-cover">
+                                <figcaption class="gal-cap absolute inset-x-0 bottom-0 p-4 text-white" style="background: linear-gradient(to top, rgba(2, 6, 23, 0.8), rgba(2, 6, 23, 0));">
+                                    <p class="text-sm font-semibold leading-tight">{{ $tile['title'] }}</p>
+                                    <p class="mt-0.5 text-xs text-slate-200">{{ $tile['caption'] }}</p>
+                                </figcaption>
+                            </figure>
+                        @endforeach
+
+                        <a href="{{ route('asrama.detail') }}" class="gal-tile relative overflow-hidden rounded-xl bg-slate-200 shadow-sm" aria-label="Lihat detail asrama">
+                            <img src="{{ asset('image/asrama-background.jpg') }}" alt="Detail Asrama Kampus INSTIKI" class="absolute inset-0 h-full w-full object-cover">
+                            <div class="absolute inset-0 bg-slate-950/40"></div>
+                            <span class="gal-pill absolute bottom-4 right-4 inline-flex items-center gap-1.5 rounded-full border border-white/40 bg-slate-950/55 px-4 py-2 text-xs font-semibold text-white backdrop-blur-sm">
+                                Lihat detail
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                            </span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Kontak -->
+                <aside class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+                    <span class="text-xs font-bold uppercase tracking-[0.2em] text-[#ed1c24]">Kami siap membantu</span>
+                    <h2 class="mt-2 text-2xl font-bold text-slate-900">Ada yang ingin ditanyakan?</h2>
+                    <p class="mt-3 text-sm leading-6 text-slate-600">Hubungi pengelola asrama untuk bertanya tentang fasilitas, proses reservasi, atau informasi lainnya.</p>
+
+                    <div class="mt-6 space-y-3">
+
+                        {{-- WhatsApp --}}
+                        @if($whatsappNumber)
+                            <a href="https://wa.me/{{ $whatsappNumber }}" target="_blank" rel="noopener noreferrer"
+                               class="lift flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+                                Hubungi via WhatsApp
+                            </a>
+                        @else
+                            <div class="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Kontak WhatsApp belum diatur. Silakan cek kembali nanti.</div>
+                        @endif
+
+                        {{-- Telepon --}}
+                        @if($contact?->telepon)
+                            <a href="tel:{{ preg_replace('/[^0-9+]/', '', $contact->telepon) }}" class="lift flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3.5">
+                                <span class="contact-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-[#ed1c24]">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                                </span>
+                                <span class="min-w-0">
+                                    <span class="block text-xs text-slate-500">Telepon</span>
+                                    <span class="block truncate text-sm font-semibold text-slate-800">{{ $contact->telepon }}</span>
+                                </span>
+                            </a>
+                        @endif
+
+                        {{-- Email --}}
+                        @if($contact?->email)
+                            <a href="mailto:{{ $contact->email }}" class="lift flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3.5">
+                                <span class="contact-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-[#ed1c24]">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                </span>
+                                <span class="min-w-0">
+                                    <span class="block text-xs text-slate-500">Email</span>
+                                    <span class="block break-all text-sm font-semibold text-slate-800">{{ $contact->email }}</span>
+                                </span>
+                            </a>
+                        @endif
+
+                        {{-- Alamat (dibuka di Google Maps) --}}
+                        @if($contact?->alamat)
+                            <a href="https://www.google.com/maps/search/?api=1&query={{ urlencode($contact->alamat) }}" target="_blank" rel="noopener noreferrer" class="lift flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3.5">
+                                <span class="contact-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-[#ed1c24]">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                </span>
+                                <span class="min-w-0">
+                                    <span class="block text-xs text-slate-500">Alamat</span>
+                                    <span class="block whitespace-pre-line text-sm font-semibold text-slate-800">{{ $contact->alamat }}</span>
+                                </span>
+                            </a>
+                        @endif
+                    </div>
+                </aside>
             </div>
         </section>
 

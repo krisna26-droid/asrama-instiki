@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Kamar;
+use App\Models\PerpanjanganPenempatan;
 use App\Models\PenempatanPenghuni;
 use App\Models\Reservasi;
 use App\Models\User;
@@ -212,6 +213,9 @@ class KamarController extends Controller
             return collect();
         }
 
-        return PenempatanPenghuni::query()->with('user')->whereIn('id', $placementIds)->orderBy('id')->lockForUpdate()->get();
+        $lockedPlacements = PenempatanPenghuni::query()->with('user')->whereIn('id', $placementIds)->orderBy('id')->lockForUpdate()->get();
+        PerpanjanganPenempatan::query()->whereIn('penempatan_id', $placementIds)->orderBy('id')->lockForUpdate()->get();
+
+        return $lockedPlacements;
     }
 }

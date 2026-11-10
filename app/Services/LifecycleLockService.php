@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Kamar;
+use App\Models\PerpanjanganPenempatan;
 use App\Models\PenempatanPenghuni;
 use App\Models\Reservasi;
 use App\Models\User;
@@ -39,6 +40,19 @@ class LifecycleLockService
                     $query->where('user_id', $userId);
                 }
             })
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+    }
+
+    public function lockExtensionsForPlacements(array $placementIds): Collection
+    {
+        if ($placementIds === []) {
+            return collect();
+        }
+
+        return PerpanjanganPenempatan::query()
+            ->whereIn('penempatan_id', $placementIds)
             ->orderBy('id')
             ->lockForUpdate()
             ->get();

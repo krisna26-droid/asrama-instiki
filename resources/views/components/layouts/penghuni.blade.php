@@ -9,6 +9,7 @@
         'kamar'      => 'Kapasitas Asrama',
         'reservasi'  => 'Reservasi Saya',
         'pembayaran' => 'Pembayaran',
+        'informasi-asrama' => 'Informasi Asrama',
         'profil'     => 'Profil Saya',
     ];
     $pageTitle = $pageTitles[$activeMenu] ?? 'Portal Penghuni';

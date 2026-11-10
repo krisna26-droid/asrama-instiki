@@ -265,6 +265,92 @@
         </div>
     </div>
 
+    {{-- Perpanjangan masa tinggal: satu bulan tiap pengajuan, berbasis kapasitas kamar. --}}
+    <section class="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div>
+            <h2 class="text-base font-bold text-slate-900">Perpanjangan masa tinggal</h2>
+            <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Ajukan satu bulan tambahan sebelum tanggal akhir. Admin Asrama memeriksa kapasitas kamar; setelah disetujui, kamar ditahan untuk periode tambahan sambil menunggu pembayaran. Perpanjangan berlaku setelah Admin Keuangan memverifikasi pembayaran.</p>
+        </div>
+
+        @if($activePlacement)
+            @php
+                $placementExtensions = $extensions->where('penempatan_id', $activePlacement->id);
+                $hasOpenExtension = $placementExtensions->contains(fn ($item) => in_array($item->status, ['pending', 'approved'], true));
+            @endphp
+            <div class="rounded-lg border border-blue-100 bg-blue-50/60 p-4 text-sm text-blue-950">
+                <p class="font-semibold">Kamar {{ $activePlacement->kamar?->nomor_kamar ?? '—' }} · Periode saat ini berakhir {{ $activePlacement->tanggal_akhir->format('d M Y') }}</p>
+                <p class="mt-1 text-xs leading-5 text-blue-800">Tanggal akhir tidak termasuk dalam masa hunian. Unggah bukti sebelum tanggal tersebut. Jika belum ada pembayaran yang diverifikasi, masa tinggal berakhir dan kamar kembali tersedia.</p>
+            </div>
+
+            @if(!$hasOpenExtension && now()->toDateString() < $activePlacement->tanggal_akhir->toDateString())
+                <form method="POST" action="{{ route('penghuni.perpanjangan.store', $activePlacement) }}" onsubmit="return confirm('Ajukan perpanjangan satu bulan untuk kamar ini?')">
+                    @csrf
+                    <button class="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">Ajukan perpanjangan 1 bulan</button>
+                </form>
+            @elseif(!$hasOpenExtension)
+                <p class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Masa pengajuan perpanjangan sudah berakhir. Jika ingin tinggal kembali, ajukan reservasi baru.</p>
+            @endif
+        @else
+            <p class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Pengajuan perpanjangan tersedia setelah Anda check-in dan memiliki penempatan aktif.</p>
+        @endif
+
+        @if($extensions->isNotEmpty())
+            <div class="space-y-3">
+                <h3 class="text-sm font-bold text-slate-800">Riwayat dan status perpanjangan</h3>
+                @foreach($extensions as $extension)
+                    @php
+                        $extensionPayment = $extension->pembayarans->sortByDesc('id')->first();
+                        $extensionLabel = match($extension->status) {
+                            'pending' => ['Menunggu persetujuan Admin Asrama', 'bg-amber-100 text-amber-800'],
+                            'approved' => ['Disetujui · menunggu pembayaran', 'bg-blue-100 text-blue-800'],
+                            'completed' => ['Lunas dan diperpanjang', 'bg-emerald-100 text-emerald-800'],
+                            'rejected' => ['Ditolak', 'bg-rose-100 text-rose-800'],
+                            'expired' => ['Kedaluwarsa · masa tinggal berakhir', 'bg-slate-100 text-slate-700'],
+                            'cancelled' => ['Dibatalkan', 'bg-slate-100 text-slate-700'],
+                            default => [ucfirst($extension->status), 'bg-slate-100 text-slate-700'],
+                        };
+                    @endphp
+                    <article class="rounded-lg border border-slate-200 p-4">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <p class="text-sm font-semibold text-slate-900">Kamar {{ $extension->penempatan?->kamar?->nomor_kamar ?? '—' }} · 1 bulan</p>
+                                <p class="mt-1 text-xs text-slate-600">{{ $extension->tanggal_akhir_sebelum->format('d M Y') }} – {{ $extension->tanggal_akhir_diajukan->format('d M Y') }}</p>
+                                <p class="mt-1 text-xs font-semibold text-slate-700">Tagihan: Rp {{ number_format($extension->jumlah_tagihan, 0, ',', '.') }}</p>
+                            </div>
+                            <span class="rounded-full px-2.5 py-1 text-[11px] font-bold {{ $extensionLabel[1] }}">{{ $extensionLabel[0] }}</span>
+                        </div>
+
+                        @if($extension->catatan_admin)
+                            <p class="mt-2 text-xs text-slate-600">Catatan Admin Asrama: {{ $extension->catatan_admin }}</p>
+                        @endif
+
+                        @if($extension->status === 'approved')
+                            @if($extensionPayment?->status === 'pending')
+                                <p class="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Bukti pembayaran sudah dikirim dan menunggu verifikasi Admin Keuangan.</p>
+                            @elseif($extensionPayment?->status === 'paid')
+                                <p class="mt-3 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-900">Pembayaran sudah lunas.</p>
+                            @else
+                                @if(now()->toDateString() < $extension->tanggal_akhir_sebelum->toDateString())
+                                    <form method="POST" action="{{ route('penghuni.perpanjangan.payment.store', $extension) }}" enctype="multipart/form-data" class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+                                        @csrf
+                                        <label class="block flex-1 text-xs font-semibold text-slate-700">Bukti pembayaran (JPG, PNG, PDF; maks. 5 MB)
+                                            <input type="file" name="bukti_pembayaran" required accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" class="mt-1 block w-full rounded-lg border border-slate-300 p-2 text-xs">
+                                        </label>
+                                        <button class="rounded-lg bg-[#ed1c24] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700">Kirim bukti perpanjangan</button>
+                                    </form>
+                                @else
+                                    <p class="mt-3 text-xs font-medium text-rose-700">Batas pembayaran telah lewat. Perpanjangan tidak berlaku.</p>
+                                @endif
+                            @endif
+                        @elseif($extensionPayment?->status === 'rejected')
+                            <p class="mt-2 text-xs text-rose-700">Catatan pembayaran: {{ $extensionPayment->catatan_keuangan ?? 'Pembayaran ditolak.' }}</p>
+                        @endif
+                    </article>
+                @endforeach
+            </div>
+        @endif
+    </section>
+
     <!-- Riwayat Pembayaran -->
     <div class="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div class="border-b border-slate-100 pb-4">
@@ -289,7 +375,13 @@
                         @php $label = $pembayaranLabels[$item->status] ?? [ucfirst($item->status), 'bg-slate-100 text-slate-600']; @endphp
                         <tr class="transition hover:bg-slate-50">
                             <td class="whitespace-nowrap px-4 py-3.5 font-mono font-bold text-slate-800">{{ $item->kode_pembayaran }}</td>
-                            <td class="whitespace-nowrap px-4 py-3.5 font-semibold text-slate-800">{{ \Carbon\Carbon::parse($item->created_at)->format('F Y') }}</td>
+                            <td class="whitespace-nowrap px-4 py-3.5 font-semibold text-slate-800">
+                                @if($item->perpanjangan)
+                                    Perpanjangan · {{ $item->perpanjangan->tanggal_akhir_sebelum->format('d M') }}–{{ $item->perpanjangan->tanggal_akhir_diajukan->format('d M Y') }}
+                                @else
+                                    {{ \Carbon\Carbon::parse($item->created_at)->format('F Y') }}
+                                @endif
+                            </td>
                             <td class="whitespace-nowrap px-4 py-3.5 font-bold text-slate-900">Rp {{ number_format($item->jumlah_bayar, 0, ',', '.') }}</td>
                             <td class="whitespace-nowrap px-4 py-3.5">{{ \Carbon\Carbon::parse($item->created_at)->format('d M Y') }}</td>
                             <td class="px-4 py-3.5">

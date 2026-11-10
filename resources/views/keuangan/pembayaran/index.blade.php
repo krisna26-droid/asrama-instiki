@@ -82,7 +82,11 @@
                             <td class="px-4 py-4">
                                 <strong class="block font-mono text-slate-900">{{ $payment->kode_pembayaran }}</strong>
                                 <span class="block text-[11px] text-slate-400">{{ $payment->created_at->format('d M Y') }}</span>
-                                @if($payment->reservasi?->durasi_bulan && $payment->reservasi?->tarif_bulanan_disetujui !== null && $payment->reservasi?->jumlah_tagihan !== null)
+                                @if($payment->perpanjangan)
+                                    <span class="mt-1 block text-[11px] font-semibold text-blue-800">Perpanjangan {{ $payment->perpanjangan->durasi_bulan }} bulan · Kamar {{ $payment->perpanjangan->penempatan?->kamar?->nomor_kamar ?? '—' }}</span>
+                                    <span class="block text-[11px] text-slate-600">{{ $payment->perpanjangan->tanggal_akhir_sebelum->format('d M Y') }} – {{ $payment->perpanjangan->tanggal_akhir_diajukan->format('d M Y') }}</span>
+                                    <span class="block text-[10px] text-slate-500">Tarif snapshot Rp {{ number_format($payment->perpanjangan->tarif_bulanan, 0, ',', '.') }}/bulan</span>
+                                @elseif($payment->reservasi?->durasi_bulan && $payment->reservasi?->tarif_bulanan_disetujui !== null && $payment->reservasi?->jumlah_tagihan !== null)
                                     <span class="mt-1 block text-[11px] text-slate-600">
                                         Tagihan {{ $payment->reservasi->durasi_bulan }} bulan
                                         · {{ $payment->reservasi->tanggal_mulai_disetujui?->format('d M Y') ?? 'tanggal belum tercatat' }} – {{ $payment->reservasi->tanggal_akhir_disetujui?->format('d M Y') ?? 'tanggal belum tercatat' }}

@@ -74,7 +74,7 @@
 
             <x-input-label
                 for="nim_nik"
-                :value="__('NIM / NIK')"
+                :value="__('NIM (Username Login)')"
                 class="font-semibold text-slate-700"
             />
 
@@ -85,7 +85,9 @@
                 name="nim_nik"
                 :value="old('nim_nik')"
                 required
-                placeholder="Masukkan NIM atau NIK"
+                minlength="8"
+                autocomplete="username"
+                placeholder="Masukkan NIM"
             />
 
             <x-input-error
@@ -93,6 +95,37 @@
                 :messages="$errors->get('nim_nik')"
             />
 
+        </div>
+
+        <!-- NIK -->
+        <div class="mt-5">
+            <x-input-label for="nik" :value="__('NIK (16 digit)')" class="font-semibold text-slate-700" />
+            <x-text-input
+                id="nik"
+                class="mt-2 block w-full"
+                type="text"
+                name="nik"
+                :value="old('nik')"
+                required
+                inputmode="numeric"
+                minlength="16"
+                maxlength="16"
+                autocomplete="off"
+                placeholder="Masukkan 16 digit NIK"
+            />
+            <x-input-error class="mt-2" :messages="$errors->get('nik')" />
+            <p class="mt-1 text-xs text-slate-500">NIK digunakan untuk data administrasi dan tidak ditampilkan ke pengguna lain.</p>
+        </div>
+
+        <!-- Jenis Kelamin -->
+        <div class="mt-5">
+            <x-input-label for="jenis_kelamin" :value="__('Jenis Kelamin')" class="font-semibold text-slate-700" />
+            <select id="jenis_kelamin" name="jenis_kelamin" required class="mt-2 block w-full rounded-md border-slate-300 shadow-sm focus:border-[#ed1c24] focus:ring-[#ed1c24]">
+                <option value="">Pilih jenis kelamin</option>
+                <option value="putra" @selected(old('jenis_kelamin') === 'putra')>Laki-laki</option>
+                <option value="putri" @selected(old('jenis_kelamin') === 'putri')>Perempuan</option>
+            </select>
+            <x-input-error class="mt-2" :messages="$errors->get('jenis_kelamin')" />
         </div>
 
         <!-- Telepon -->
@@ -223,6 +256,10 @@
             </p>
 
         </div>
+
+        <p class="mt-4 text-center text-xs leading-5 text-slate-500">
+            KTP diunggah saat mengajukan reservasi. Password akun minimal 8 karakter.
+        </p>
 
     </form>
 

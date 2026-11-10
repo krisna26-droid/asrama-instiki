@@ -46,12 +46,12 @@
 
         @csrf
 
-        <!-- NIM / Email -->
+        <!-- Username / NIM -->
         <div>
 
             <x-input-label
                 for="login"
-                value="Username"
+                value="NIM / Username"
                 class="text-sm font-semibold text-slate-700"
             />
 
@@ -64,7 +64,7 @@
                 required
                 autofocus
                 autocomplete="username"
-                placeholder="Masukan username"
+                placeholder="Masukkan NIM atau username"
             />
 
             <x-input-error
@@ -164,6 +164,15 @@
         </div>
 
     </form>
+
+    <div class="mt-6 border-t border-slate-200 pt-5 text-center">
+        <p class="text-sm text-slate-600">
+            Belum punya akun?
+            <a href="{{ route('register') }}" class="font-semibold text-[#ed1c24] transition hover:text-red-700">
+                Daftar sebagai penghuni
+            </a>
+        </p>
+    </div>
 
 </div>
 

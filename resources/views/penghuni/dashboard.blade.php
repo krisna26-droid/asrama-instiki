@@ -90,6 +90,27 @@
         </div>
     </div>
 
+    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="grid gap-5 p-5 sm:p-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+            <div class="flex items-start gap-4">
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-[#ed1c24]">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 10.5 12 3l9 7.5M5 9v11h14V9M9 20v-6h6v6" />
+                    </svg>
+                </span>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wider text-[#ed1c24]">Kenali lingkungan hunian</p>
+                    <h2 class="mt-1 text-base font-bold text-slate-900 sm:text-lg">Informasi Asrama INSTIKI</h2>
+                    <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">Lihat galeri fasilitas, deskripsi, dan kontak pengelola pada halaman detail asrama.</p>
+                </div>
+            </div>
+            <a href="{{ route('asrama.detail') }}" class="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2">
+                Lihat detail asrama
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6" /></svg>
+            </a>
+        </div>
+    </section>
+
     @if($assignedPlacements->isNotEmpty())
         <section class="space-y-3 rounded-lg border border-blue-100 bg-white p-5 shadow-sm">
             <div>

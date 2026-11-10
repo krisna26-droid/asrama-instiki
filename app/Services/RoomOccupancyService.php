@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Kamar;
+use App\Models\PerpanjanganPenempatan;
 use App\Models\PenempatanPenghuni;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -11,12 +12,13 @@ use Illuminate\Support\Facades\Schema;
 class RoomOccupancyService
 {
     /** Capacity is checked on half-open calendar intervals [start, end). */
-    public function canFit(Kamar $room, Collection $placements, string $start, string $end): bool
+    public function canFit(Kamar $room, Collection $placements, string $start, string $end, ?int $ignoreExtensionId = null): bool
     {
         if (!$room->is_active || $room->status === 'perbaikan' || $room->kapasitas < 1 || $start >= $end) {
             return false;
         }
 
+        $extensionEnds = $this->approvedExtensionEnds($placements, $ignoreExtensionId);
         $events = [[$start, 1], [$end, -1]];
         foreach ($placements as $placement) {
             if ((int) $placement->kamar_id !== (int) $room->id || !in_array($placement->status, ['scheduled', 'active', 'no_show'], true)) {
@@ -24,7 +26,7 @@ class RoomOccupancyService
             }
 
             $existingStart = $placement->tanggal_mulai->toDateString();
-            $existingEnd = $this->effectiveEnd($placement);
+            $existingEnd = max($this->effectiveEnd($placement), $extensionEnds[$placement->id] ?? '0000-00-00');
             if ($existingStart >= $end || $existingEnd <= $start) {
                 continue;
             }
@@ -48,13 +50,14 @@ class RoomOccupancyService
     public function peakConcurrentOccupancy(Collection $placements, ?string $fromDate = null): int
     {
         $fromDate ??= now()->toDateString();
+        $extensionEnds = $this->approvedExtensionEnds($placements);
         $events = [];
         foreach ($placements as $placement) {
             if (!in_array($placement->status, ['scheduled', 'active', 'no_show'], true)) {
                 continue;
             }
             $start = max($placement->tanggal_mulai->toDateString(), $fromDate);
-            $end = $this->effectiveEnd($placement);
+            $end = max($this->effectiveEnd($placement), $extensionEnds[$placement->id] ?? '0000-00-00');
             if ($end <= $start) {
                 continue;
             }
@@ -117,10 +120,20 @@ class RoomOccupancyService
             ->whereIn('status', ['scheduled', 'active', 'no_show'])
             ->whereDate('tanggal_mulai', '<=', $date)
             ->get();
+        $commitmentExtensionEnds = $this->approvedExtensionEnds($commitments);
         $committedBeds = $commitments->filter(function ($placement) use ($date) {
             if ($placement->status === 'no_show') return true;
             if ($placement->tanggal_akhir->toDateString() <= $date) return false;
             return !$placement->check_out_at || $placement->check_out_at->toDateString() > $date;
+        })->count();
+
+        // Approved extensions reserve the next interval while payment is being completed.
+        $committedBeds += $commitments->filter(function ($placement) use ($date, $commitmentExtensionEnds) {
+            if (in_array($placement->status, ['completed', 'cancelled'], true)) return false;
+            $extensionEnd = $commitmentExtensionEnds[$placement->id] ?? null;
+            return $extensionEnd !== null
+                && $placement->tanggal_akhir->toDateString() <= $date
+                && $extensionEnd > $date;
         })->count();
 
         $available = max(0, $capacity - $committedBeds);
@@ -161,5 +174,30 @@ class RoomOccupancyService
 
         $actualEnd = CarbonImmutable::instance($placement->check_out_at)->toDateString();
         return min($plannedEnd, $actualEnd);
+    }
+
+    /** @return array<int, string> approved extensions that currently hold future capacity */
+    private function approvedExtensionEnds(Collection $placements, ?int $ignoreExtensionId = null): array
+    {
+        if ($placements->isEmpty() || !Schema::hasTable('perpanjangan_penempatans')) {
+            return [];
+        }
+
+        $placementIds = $placements->pluck('id')->filter()->unique()->values();
+        if ($placementIds->isEmpty()) {
+            return [];
+        }
+
+        $query = PerpanjanganPenempatan::query()
+            ->whereIn('penempatan_id', $placementIds)
+            ->where('status', 'approved');
+        if ($ignoreExtensionId !== null) {
+            $query->where('id', '<>', $ignoreExtensionId);
+        }
+
+        return $query->get(['penempatan_id', 'tanggal_akhir_diajukan'])
+            ->groupBy('penempatan_id')
+            ->map(fn (Collection $extensions): string => $extensions->max('tanggal_akhir_diajukan')->toDateString())
+            ->all();
     }
 }

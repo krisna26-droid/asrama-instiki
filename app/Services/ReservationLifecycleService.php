@@ -42,6 +42,7 @@ class ReservationLifecycleService
 
             $rooms = $this->locks->lockAllRooms();
             $placements = $this->locks->lockPlacementsForRoomsAndUser($rooms->modelKeys(), (int) $user->id);
+            $this->locks->lockExtensionsForPlacements($placements->modelKeys());
 
             $months = null;
             if ($expectedStatus === 'pending') {
@@ -128,6 +129,7 @@ class ReservationLifecycleService
             $this->locks->lockUser((int) $placementSnapshot->user_id);
             $this->locks->lockAllRooms();
             $placement = PenempatanPenghuni::query()->whereKey($placementId)->lockForUpdate()->firstOrFail();
+            $extensions = $this->locks->lockExtensionsForPlacements([$placementId]);
 
             if ($placement->status !== 'scheduled' || $placement->check_in_at || $reservation->status !== 'approved') {
                 throw ValidationException::withMessages(['placement' => 'Penempatan ini tidak dapat check-in.']);
@@ -156,6 +158,7 @@ class ReservationLifecycleService
             $placements = PenempatanPenghuni::query()
                 ->where('reservasi_id', $reservation->id)
                 ->orderBy('id')->lockForUpdate()->get();
+            $extensions = $this->locks->lockExtensionsForPlacements($placements->modelKeys());
             $placement = $placements->firstWhere('id', $placementId);
 
             if (!$placement || $placement->status !== 'active' || !$placement->check_in_at) {
@@ -168,6 +171,16 @@ class ReservationLifecycleService
             $placement->check_out_oleh = $actorId;
             $placement->catatan_lifecycle = trim(($placement->catatan_lifecycle ? $placement->catatan_lifecycle."\n" : '') . 'Checkout: ' . $reason);
             $placement->save();
+
+            foreach ($extensions->where('penempatan_id', $placement->id) as $extension) {
+                if (in_array($extension->status, ['pending', 'approved'], true)) {
+                    $extension->status = 'cancelled';
+                    $extension->diputuskan_oleh = $actorId;
+                    $extension->diputuskan_at = $checkoutAt;
+                    $extension->catatan_admin = trim(($extension->catatan_admin ? $extension->catatan_admin . "\n" : '') . 'Dibatalkan karena penghuni checkout: ' . $reason);
+                    $extension->save();
+                }
+            }
 
             foreach ($placements as $future) {
                 if ($future->id !== $placement->id && $future->status === 'scheduled' && $future->tanggal_mulai->greaterThanOrEqualTo($checkoutAt->toDateString())) {
@@ -195,12 +208,17 @@ class ReservationLifecycleService
             $user = $this->locks->lockUser((int) $snapshot->user_id);
             $rooms = $this->locks->lockAllRooms();
             $placements = $this->locks->lockPlacementsForRoomsAndUser($rooms->modelKeys(), (int) $user->id);
+            $extensions = $this->locks->lockExtensionsForPlacements($placements->modelKeys());
             $source = $placements->firstWhere('id', $sourcePlacementId);
             $target = $rooms->firstWhere('id', $targetRoomId);
 
             if (!$source || $source->status !== 'active' || !$source->check_in_at || $source->check_out_at
                 || $reservation->status !== 'approved') {
                 throw ValidationException::withMessages(['placement' => 'Hanya penempatan aktif yang dapat dipindahkan.']);
+            }
+            if ($extensions->contains(fn ($extension) => (int) $extension->penempatan_id === $sourcePlacementId
+                && in_array($extension->status, ['pending', 'approved'], true))) {
+                throw ValidationException::withMessages(['placement' => 'Selesaikan atau batalkan pengajuan perpanjangan yang masih terbuka sebelum memindahkan kamar.']);
             }
             if (!$target || (int) $target->id === (int) $source->kamar_id
                 || $target->kategori !== $user->jenis_kelamin
