@@ -58,6 +58,21 @@
         </div>
     </div>
 
+    @if(!empty($branchCapacitySummaries))
+        <section class="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div><h2 class="text-base font-bold text-slate-900">Ketersediaan per titik asrama</h2><p class="mt-1 text-xs text-slate-500">Cabang dan kamar ditetapkan Admin Asrama saat menyetujui pengajuan.</p></div>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                @foreach($branchCapacitySummaries as $branch)
+                    <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <h3 class="font-semibold text-slate-900">{{ $branch['nama'] }}</h3>
+                        <p class="mt-1 text-xs text-slate-600">{{ $branch['alamat'] }}</p>
+                        <p class="mt-3 text-sm text-slate-700">{{ $branch['schemaReady'] ? $branch['kapasitasTersedia'] : '—' }} tempat tersedia · kapasitas {{ $branch['totalKapasitas'] }}</p>
+                    </article>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
     <!-- Proses Penempatan -->
     <div class="space-y-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div class="border-b border-slate-100 pb-4">

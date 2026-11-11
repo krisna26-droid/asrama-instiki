@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Kamar;
+use App\Models\CabangAsrama;
 use App\Models\PerpanjanganPenempatan;
 use App\Models\PenempatanPenghuni;
 use App\Models\Reservasi;
@@ -11,7 +12,7 @@ use Illuminate\Support\Collection;
 
 /**
  * Lock helper for lifecycle writes. Callers must already be inside a transaction.
- * Canonical order: reservations, users, rooms, placements, extensions.
+ * Canonical order: reservations, users, rooms, placements, extensions, branches.
  */
 class LifecycleLockService
 {
@@ -68,6 +69,20 @@ class LifecycleLockService
 
         return PerpanjanganPenempatan::query()
             ->whereIn('penempatan_id', $placementIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+    }
+
+    public function lockBranches(array $branchIds): Collection
+    {
+        $ids = collect($branchIds)->filter()->map(fn ($id) => (int) $id)->unique()->sort()->values();
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return CabangAsrama::query()
+            ->whereIn('id', $ids)
             ->orderBy('id')
             ->lockForUpdate()
             ->get();

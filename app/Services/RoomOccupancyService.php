@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Kamar;
+use App\Models\CabangAsrama;
 use App\Models\PerpanjanganPenempatan;
 use App\Models\PenempatanPenghuni;
 use Carbon\CarbonImmutable;
@@ -79,13 +80,46 @@ class RoomOccupancyService
         return $this->capacitySummaryAt(now()->toDateString());
     }
 
-    public function capacitySummaryAt(string $date): array
+    public function capacitySummaryByBranch(?string $date = null): array
+    {
+        if (!Schema::hasTable('cabang_asramas') || !Schema::hasColumn('kamars', 'cabang_asrama_id')) {
+            return [];
+        }
+
+        $date ??= now()->toDateString();
+        return CabangAsrama::query()
+            ->where('is_active', true)
+            ->with(['kamars' => fn ($query) => $query->where('is_active', true)->where('status', '!=', 'perbaikan')->orderBy('id')])
+            ->orderBy('nama')
+            ->get()
+            ->map(function (CabangAsrama $branch) use ($date): array {
+                $summary = $this->capacitySummaryAt($date, $branch->kamars->modelKeys(), (int) $branch->id);
+                return [
+                    'id' => $branch->id,
+                    'kode' => $branch->kode,
+                    'nama' => $branch->nama,
+                    'alamat' => $branch->alamat,
+                    'maps_url' => $branch->maps_url,
+                    'telepon' => $branch->telepon,
+                    'whatsapp' => $branch->whatsapp,
+                ] + $summary;
+            })->all();
+    }
+
+    public function capacitySummaryAt(string $date, ?array $onlyRoomIds = null, ?int $branchId = null): array
     {
         if (!Schema::hasTable('kamars')) {
             return $this->unavailableSummary();
         }
 
         $roomQuery = Kamar::query()->where('status', '!=', 'perbaikan');
+        if ($onlyRoomIds !== null) {
+            $roomQuery->whereIn('id', $onlyRoomIds);
+        }
+        if (Schema::hasTable('cabang_asramas') && Schema::hasColumn('kamars', 'cabang_asrama_id')) {
+            // Only active, explicitly assigned branches accept new placements.
+            $roomQuery->whereHas('cabangAsrama', fn ($branch) => $branch->where('is_active', true));
+        }
         if (Schema::hasColumn('kamars', 'is_active')) {
             $roomQuery->where('is_active', true);
         }
@@ -97,29 +131,50 @@ class RoomOccupancyService
         if (!Schema::hasTable('penempatan_penghunis')) {
             return $this->unavailableSummary($capacity);
         }
+        if ($branchId !== null && !Schema::hasColumn('penempatan_penghunis', 'cabang_asrama_id')) {
+            return $this->unavailableSummary($capacity);
+        }
         foreach ($placementColumns as $column) {
             if (!Schema::hasColumn('penempatan_penghunis', $column)) {
                 return $this->unavailableSummary($capacity);
             }
         }
 
-        $candidatePlacements = PenempatanPenghuni::query()
+        $candidateQuery = PenempatanPenghuni::query()
             ->whereIn('kamar_id', $roomIds)
             ->whereIn('status', ['active', 'completed'])
             ->whereNotNull('check_in_at')
-            ->whereDate('tanggal_mulai', '<=', $date)
-            ->get();
+            ->whereDate('tanggal_mulai', '<=', $date);
+        if ($branchId !== null) {
+            $candidateQuery->where(function ($query) use ($branchId): void {
+                $query->where('cabang_asrama_id', $branchId)
+                    ->orWhere(function ($legacy) use ($branchId): void {
+                        $legacy->whereNull('cabang_asrama_id')
+                            ->whereHas('kamar', fn ($room) => $room->where('cabang_asrama_id', $branchId));
+                    });
+            });
+        }
+        $candidatePlacements = $candidateQuery->get();
         $occupied = $candidatePlacements
             ->filter(fn ($placement) => $placement->status !== 'active' || !$placement->check_out_at)
             ->filter(fn ($placement) => $placement->tanggal_akhir->toDateString() > $date
                 && (!$placement->check_out_at || $placement->check_out_at->toDateString() > $date))
             ->pluck('user_id')->unique()->count();
 
-        $commitments = PenempatanPenghuni::query()
+        $commitmentQuery = PenempatanPenghuni::query()
             ->whereIn('kamar_id', $roomIds)
             ->whereIn('status', ['scheduled', 'active', 'no_show'])
-            ->whereDate('tanggal_mulai', '<=', $date)
-            ->get();
+            ->whereDate('tanggal_mulai', '<=', $date);
+        if ($branchId !== null) {
+            $commitmentQuery->where(function ($query) use ($branchId): void {
+                $query->where('cabang_asrama_id', $branchId)
+                    ->orWhere(function ($legacy) use ($branchId): void {
+                        $legacy->whereNull('cabang_asrama_id')
+                            ->whereHas('kamar', fn ($room) => $room->where('cabang_asrama_id', $branchId));
+                    });
+            });
+        }
+        $commitments = $commitmentQuery->get();
         $commitmentExtensionEnds = $this->approvedExtensionEnds($commitments);
         $committedBeds = $commitments->filter(function ($placement) use ($date) {
             if ($placement->status === 'no_show') return true;

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Kamar;
+use App\Models\CabangAsrama;
 use App\Models\PerpanjanganPenempatan;
 use App\Models\PenempatanPenghuni;
 use App\Models\Reservasi;
@@ -20,7 +21,7 @@ class KamarController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Kamar::query()->withCount(['penempatans as penghuni_aktif_count' => fn ($placement) => $placement
+        $query = Kamar::query()->with('cabangAsrama')->withCount(['penempatans as penghuni_aktif_count' => fn ($placement) => $placement
             ->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')
             ->whereDate('tanggal_mulai', '<=', now()->toDateString())->whereDate('tanggal_akhir', '>', now()->toDateString())]);
         if ($request->filled('search')) {
@@ -34,6 +35,9 @@ class KamarController extends Controller
         if ($request->filled('kategori')) {
             $query->where('kategori', $request->string('kategori')->toString());
         }
+        if ($request->filled('cabang_asrama_id')) {
+            $query->where('cabang_asrama_id', $request->integer('cabang_asrama_id'));
+        }
         if ($request->filled('aktif') && in_array($request->input('aktif'), ['0', '1'], true)) {
             $query->where('is_active', $request->boolean('aktif'));
         }
@@ -45,7 +49,8 @@ class KamarController extends Controller
         }
 
         $kamars = $query->orderBy('nomor_kamar')->paginate(12)->withQueryString();
-        return view('admin.kamar.index', compact('kamars'));
+        $cabangs = CabangAsrama::query()->orderBy('nama')->get();
+        return view('admin.kamar.index', compact('kamars', 'cabangs'));
     }
 
     public function store(Request $request)
@@ -58,11 +63,20 @@ class KamarController extends Controller
         }
 
         try {
-            $room = new Kamar();
-            $this->assignRoomFields($room, $data);
-            $room->is_active = true;
-            $room->foto = filled($data['foto'] ?? null) ? $data['foto'] : null;
-            $room->save();
+            DB::transaction(function () use ($data): void {
+                // Room allocation also locks rooms before branches; preserve that order.
+                Kamar::query()->orderBy('id')->lockForUpdate()->get(['id']);
+                $branch = CabangAsrama::query()->whereKey($data['cabang_asrama_id'])->lockForUpdate()->first();
+                if (!$branch || !$branch->is_active) {
+                    throw ValidationException::withMessages(['cabang_asrama_id' => 'Pilih cabang asrama yang aktif.']);
+                }
+
+                $room = new Kamar();
+                $this->assignRoomFields($room, $data);
+                $room->is_active = true;
+                $room->foto = filled($data['foto'] ?? null) ? $data['foto'] : null;
+                $room->save();
+            }, 3);
         } catch (Throwable $exception) {
             $this->removeUploadedPhotoAfterFailure($uploadedPhoto);
             throw $exception;
@@ -84,13 +98,23 @@ class KamarController extends Controller
                 $snapshot = PenempatanPenghuni::query()->where('kamar_id', $kamar->id)
                     ->whereIn('status', ['scheduled', 'active', 'no_show'])
                     ->get(['id', 'reservasi_id', 'user_id']);
-                $placements = $this->lockRoomContext($snapshot);
+                $placements = $this->lockRoomContext($snapshot, [$kamar->cabang_asrama_id, $data['cabang_asrama_id']]);
+                $branch = CabangAsrama::query()->whereKey($data['cabang_asrama_id'])->first();
+                if (!$branch || !$branch->is_active) {
+                    throw ValidationException::withMessages(['cabang_asrama_id' => 'Pilih cabang asrama yang aktif.']);
+                }
 
                 if ($occupancy->peakConcurrentOccupancy($placements) > $data['kapasitas']) {
                     throw ValidationException::withMessages(['kapasitas' => 'Kapasitas baru di bawah puncak penempatan aktif/terjadwal saat ini.']);
                 }
 
                 $lockedRoom = Kamar::query()->whereKey($kamar->id)->firstOrFail();
+                $currentBranchId = $lockedRoom->cabang_asrama_id === null ? null : (int) $lockedRoom->cabang_asrama_id;
+                $requestedBranchId = (int) $data['cabang_asrama_id'];
+                if ($currentBranchId !== null && $currentBranchId !== $requestedBranchId
+                    && PenempatanPenghuni::query()->where('kamar_id', $lockedRoom->id)->exists()) {
+                    throw ValidationException::withMessages(['cabang_asrama_id' => 'Cabang kamar yang sudah memiliki histori placement tidak dapat dipindahkan. Buat kamar baru untuk lokasi berbeda.']);
+                }
                 if ($placements->contains(fn ($placement) => in_array($placement->status, ['scheduled', 'active', 'no_show'], true)
                     && $placement->user?->jenis_kelamin !== $data['kategori'])) {
                     throw ValidationException::withMessages(['kategori' => 'Kategori kamar tidak dapat diubah selama ada penempatan yang tidak sesuai.']);
@@ -118,7 +142,7 @@ class KamarController extends Controller
     {
         DB::transaction(function () use ($kamar) {
             $snapshot = PenempatanPenghuni::query()->where('kamar_id', $kamar->id)->get(['id', 'reservasi_id', 'user_id']);
-            $placements = $this->lockRoomContext($snapshot);
+            $placements = $this->lockRoomContext($snapshot, [$kamar->cabang_asrama_id]);
             $lockedRoom = Kamar::query()->whereKey($kamar->id)->firstOrFail();
             if ($placements->contains(fn ($placement) => in_array($placement->status, ['scheduled', 'active', 'no_show'], true))) {
                 throw ValidationException::withMessages(['kamar' => 'Kamar dengan penempatan aktif, terjadwal, atau no-show tidak dapat diarsipkan.']);
@@ -134,7 +158,7 @@ class KamarController extends Controller
     {
         DB::transaction(function () use ($kamar) {
             $snapshot = PenempatanPenghuni::query()->where('kamar_id', $kamar->id)->get(['id', 'reservasi_id', 'user_id']);
-            $placements = $this->lockRoomContext($snapshot);
+            $placements = $this->lockRoomContext($snapshot, [$kamar->cabang_asrama_id]);
             $lockedRoom = Kamar::query()->whereKey($kamar->id)->firstOrFail();
             if ($lockedRoom->is_active && $placements->contains(fn ($placement) => in_array($placement->status, ['scheduled', 'active', 'no_show'], true))) {
                 throw ValidationException::withMessages(['kamar' => 'Kamar dengan penempatan aktif, terjadwal, atau no-show tidak dapat dinonaktifkan.']);
@@ -149,6 +173,7 @@ class KamarController extends Controller
     {
         return $request->validate([
             'nomor_kamar' => ['required', 'string', 'max:255', Rule::unique('kamars', 'nomor_kamar')->ignore($kamar?->id)],
+            'cabang_asrama_id' => ['required', 'integer', 'exists:cabang_asramas,id'],
             'blok' => ['required', 'string', 'max:30'],
             'lantai' => ['required', 'integer', 'min:0'],
             'kategori' => ['required', 'in:putra,putri'],
@@ -190,13 +215,13 @@ class KamarController extends Controller
 
     private function assignRoomFields(Kamar $room, array $data): void
     {
-        foreach (['nomor_kamar', 'blok', 'lantai', 'kategori', 'kapasitas', 'harga_bulanan', 'status', 'fasilitas'] as $field) {
+        foreach (['nomor_kamar', 'cabang_asrama_id', 'blok', 'lantai', 'kategori', 'kapasitas', 'harga_bulanan', 'status', 'fasilitas'] as $field) {
             $room->{$field} = $data[$field] ?? null;
         }
     }
 
     /** Lock reservations -> users -> rooms -> placements in ascending IDs. */
-    private function lockRoomContext($placements)
+    private function lockRoomContext($placements, array $branchIds = [])
     {
         $reservationIds = $placements->pluck('reservasi_id')->filter()->unique()->sort()->values();
         $userIds = $placements->pluck('user_id')->filter()->unique()->sort()->values();
@@ -206,16 +231,30 @@ class KamarController extends Controller
         if ($userIds->isNotEmpty()) {
             User::query()->whereIn('id', $userIds)->orderBy('id')->lockForUpdate()->get();
         }
-        Kamar::query()->orderBy('id')->lockForUpdate()->get(['id']);
+        $lockedRooms = Kamar::query()->orderBy('id')->lockForUpdate()->get(['id', 'cabang_asrama_id']);
 
         $placementIds = $placements->pluck('id')->filter()->unique()->sort()->values();
-        if ($placementIds->isEmpty()) {
-            return collect();
+        $lockedPlacements = $placementIds->isEmpty()
+            ? collect()
+            : PenempatanPenghuni::query()->with('user')->whereIn('id', $placementIds)->orderBy('id')->lockForUpdate()->get();
+        if ($placementIds->isNotEmpty()) {
+            PerpanjanganPenempatan::query()->whereIn('penempatan_id', $placementIds)->orderBy('id')->lockForUpdate()->get();
         }
-
-        $lockedPlacements = PenempatanPenghuni::query()->with('user')->whereIn('id', $placementIds)->orderBy('id')->lockForUpdate()->get();
-        PerpanjanganPenempatan::query()->whereIn('penempatan_id', $placementIds)->orderBy('id')->lockForUpdate()->get();
+        $this->lockBranchRows(array_merge(
+            $branchIds,
+            $placements->pluck('cabang_asrama_id')->all(),
+            $lockedPlacements->pluck('cabang_asrama_id')->all(),
+            $lockedRooms->pluck('cabang_asrama_id')->all(),
+        ));
 
         return $lockedPlacements;
+    }
+
+    private function lockBranchRows(array $branchIds): void
+    {
+        $ids = collect($branchIds)->filter()->map(fn ($id) => (int) $id)->unique()->sort()->values();
+        if ($ids->isNotEmpty()) {
+            CabangAsrama::query()->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
+        }
     }
 }

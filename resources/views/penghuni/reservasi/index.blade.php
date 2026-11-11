@@ -71,6 +71,7 @@
                                     Menunggu alokasi kamar
                                 @endif
                             </span>
+                            <span class="w-full text-[11px] font-semibold text-blue-800">Cabang: {{ $placement->cabangAsrama?->nama ?? 'Belum tercatat pada placement ini' }}</span>
                             <span class="text-slate-600">
                                 {{ $placement->tanggal_mulai->format('d M Y') }} – {{ $placement->tanggal_akhir->format('d M Y') }}
                                 <span class="text-slate-400">(tanggal akhir tidak termasuk)</span>
@@ -147,6 +148,7 @@
                                 @forelse($item->penempatans as $placement)
                                     <span class="mb-1 block whitespace-nowrap">
                                         {{ $placement->kamar?->nomor_kamar ? 'Kamar '.$placement->kamar->nomor_kamar.' · ' : '' }}
+                                        {{ $placement->cabangAsrama?->nama ?? 'Cabang belum tercatat' }} ·
                                         {{ $placement->tanggal_mulai->format('d M Y') }} – {{ $placement->tanggal_akhir->format('d M Y') }}
                                         <span class="text-[11px] text-slate-400">({{ ucfirst($placement->status) }})</span>
                                     </span>

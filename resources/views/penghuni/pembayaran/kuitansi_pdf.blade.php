@@ -181,9 +181,10 @@
                 <td>
                     @if($pembayaran->perpanjangan)
                         Perpanjangan Sewa Kamar Asrama
-                        <br><small>{{ $pembayaran->perpanjangan->durasi_bulan }} bulan · Kamar {{ $pembayaran->perpanjangan->penempatan?->kamar?->nomor_kamar ?? '—' }} · Rp {{ number_format($pembayaran->perpanjangan->tarif_bulanan, 0, ',', '.') }}/bulan</small>
+                        <br><small>{{ $pembayaran->perpanjangan->durasi_bulan }} bulan · Kamar {{ $pembayaran->perpanjangan->penempatan?->kamar?->nomor_kamar ?? '—' }} · Cabang {{ $pembayaran->perpanjangan->penempatan?->cabangAsrama?->nama ?? 'belum tercatat' }} · Rp {{ number_format($pembayaran->perpanjangan->tarif_bulanan, 0, ',', '.') }}/bulan</small>
                     @else
                         Sewa Kamar Asrama
+                        <br><small>Cabang {{ $pembayaran->reservasi?->cabangAsrama?->nama ?? 'belum tercatat pada reservasi ini' }}</small>
                     @endif
                     @if(!$pembayaran->perpanjangan && $pembayaran->reservasi?->durasi_bulan && $pembayaran->reservasi?->tarif_bulanan_disetujui !== null && $pembayaran->reservasi?->jumlah_tagihan !== null)
                         <br><small>{{ $pembayaran->reservasi->durasi_bulan }} bulan · Rp {{ number_format($pembayaran->reservasi->tarif_bulanan_disetujui, 0, ',', '.') }}/bulan</small>

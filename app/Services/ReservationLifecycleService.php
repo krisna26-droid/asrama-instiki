@@ -17,19 +17,19 @@ class ReservationLifecycleService
         private readonly RoomOccupancyService $occupancy,
     ) {}
 
-    public function approve(int $reservationId, string $start, ?int $durationMonths = null): PenempatanPenghuni
+    public function approve(int $reservationId, string $start, int $branchId, ?int $durationMonths = null): PenempatanPenghuni
     {
-        return $this->allocateReservation($reservationId, $start, null, 'pending', $durationMonths);
+        return $this->allocateReservation($reservationId, $start, null, 'pending', $branchId, $durationMonths);
     }
 
-    public function verifyLegacy(int $reservationId, string $start, string $end): PenempatanPenghuni
+    public function verifyLegacy(int $reservationId, string $start, string $end, int $branchId): PenempatanPenghuni
     {
-        return $this->allocateReservation($reservationId, $start, $end, 'legacy_unverified');
+        return $this->allocateReservation($reservationId, $start, $end, 'legacy_unverified', $branchId);
     }
 
-    private function allocateReservation(int $reservationId, string $start, ?string $end, string $expectedStatus, ?int $durationMonths = null): PenempatanPenghuni
+    private function allocateReservation(int $reservationId, string $start, ?string $end, string $expectedStatus, int $branchId, ?int $durationMonths = null): PenempatanPenghuni
     {
-        return DB::transaction(function () use ($reservationId, $start, $end, $expectedStatus, $durationMonths) {
+        return DB::transaction(function () use ($reservationId, $start, $end, $expectedStatus, $branchId, $durationMonths) {
             $reservation = $this->locks->lockReservation($reservationId);
             if ($reservation->status !== $expectedStatus || $reservation->penempatans()->exists()) {
                 throw ValidationException::withMessages(['reservation' => 'Reservasi ini tidak memenuhi syarat untuk dialokasikan.']);
@@ -43,6 +43,10 @@ class ReservationLifecycleService
             $rooms = $this->locks->lockAllRooms();
             $placements = $this->locks->lockPlacementsForRoomsAndUser($rooms->modelKeys(), (int) $user->id);
             $this->locks->lockExtensionsForPlacements($placements->modelKeys());
+            $branch = $this->locks->lockBranches([$branchId])->firstWhere('id', $branchId);
+            if (!$branch || !$branch->is_active) {
+                throw ValidationException::withMessages(['cabang_asrama_id' => 'Pilih cabang asrama yang masih aktif.']);
+            }
 
             $months = null;
             if ($expectedStatus === 'pending') {
@@ -73,14 +77,15 @@ class ReservationLifecycleService
                 }
             }
 
-            $eligible = $rooms->filter(function ($room) use ($user, $placements, $start, $end) {
+            $eligible = $rooms->filter(function ($room) use ($user, $placements, $start, $end, $branchId) {
                 return $room->kategori === $user->jenis_kelamin
+                    && (int) $room->cabang_asrama_id === $branchId
                     && $room->status !== 'perbaikan'
                     && $this->occupancy->canFit($room, $placements, $start, $end);
             })->values();
 
             if ($eligible->isEmpty()) {
-                throw ValidationException::withMessages(['reservation' => 'Tidak ada kamar dengan kategori dan kapasitas yang sesuai untuk periode tersebut.']);
+                throw ValidationException::withMessages(['reservation' => 'Tidak ada kamar tersedia pada cabang yang dipilih dengan kategori dan kapasitas yang sesuai untuk periode tersebut.']);
             }
 
             $room = $eligible[random_int(0, $eligible->count() - 1)];
@@ -97,6 +102,7 @@ class ReservationLifecycleService
                 'reservasi_id' => $reservation->id,
                 'user_id' => $user->id,
                 'kamar_id' => $room->id,
+                'cabang_asrama_id' => $branchId,
                 'tanggal_mulai' => $start,
                 'tanggal_akhir' => $end,
                 'status' => 'scheduled',
@@ -106,6 +112,7 @@ class ReservationLifecycleService
                 $reservation->kamar_legacy_id = $reservation->kamar_id;
             }
             $reservation->kamar_id = $room->id;
+            $reservation->cabang_asrama_id = $branchId;
             $reservation->status = 'approved';
             if ($months !== null) {
                 $reservation->durasi_bulan = $months;
@@ -416,6 +423,11 @@ class ReservationLifecycleService
                 || !$target->is_active || $target->status === 'perbaikan') {
                 throw ValidationException::withMessages(['kamar_id' => 'Kamar tujuan tidak aktif atau tidak sesuai kategori penghuni.']);
             }
+            $targetBranchId = (int) $target->cabang_asrama_id;
+            $targetBranch = $this->locks->lockBranches([$targetBranchId])->firstWhere('id', $targetBranchId);
+            if (!$targetBranch || !$targetBranch->is_active) {
+                throw ValidationException::withMessages(['kamar_id' => 'Kamar tujuan harus berada pada cabang asrama yang aktif.']);
+            }
 
             $now = now();
             $transferDate = $now->toDateString();
@@ -447,6 +459,7 @@ class ReservationLifecycleService
                 'reservasi_id' => $reservation->id,
                 'user_id' => $user->id,
                 'kamar_id' => $target->id,
+                'cabang_asrama_id' => $targetBranchId,
                 'transfer_dari_id' => $source->id,
                 'tanggal_akhir_asal_sebelum_transfer' => $plannedEnd,
                 'tanggal_mulai' => $transferDate,

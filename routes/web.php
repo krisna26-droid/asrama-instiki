@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\PenghuniController;
 use App\Http\Controllers\Admin\LaporanController;
 use App\Http\Controllers\Admin\AkunPenghuniController;
 use App\Http\Controllers\Admin\KontenAsramaController;
+use App\Http\Controllers\Admin\CabangAsramaController;
 use App\Http\Controllers\Admin\PerpanjanganController as AdminPerpanjanganController;
 
 // Controller Admin Keuangan
@@ -67,8 +68,14 @@ Route::middleware(['auth', 'role:admin_asrama'])->group(function () {
     Route::put('/admin/akun-penghuni/{user}', [AkunPenghuniController::class, 'update'])->name('admin.akun-penghuni.update');
     Route::patch('/admin/akun-penghuni/{user}/toggle', [AkunPenghuniController::class, 'toggle'])->name('admin.akun-penghuni.toggle');
     Route::patch('/admin/akun-penghuni/{user}/reset-password', [AkunPenghuniController::class, 'resetPassword'])->name('admin.akun-penghuni.reset-password');
-    Route::resource('/admin/kamar', KamarController::class)->except(['create', 'show', 'edit']);
+    Route::resource('/admin/kamar', KamarController::class)
+        ->except(['create', 'show', 'edit'])
+        ->names('admin.kamar');
     Route::patch('/admin/kamar/{kamar}/toggle-active', [KamarController::class, 'toggleActive'])->name('admin.kamar.toggle-active');
+    Route::get('/admin/cabang-asrama', [CabangAsramaController::class, 'index'])->name('admin.cabang.index');
+    Route::post('/admin/cabang-asrama', [CabangAsramaController::class, 'store'])->name('admin.cabang.store');
+    Route::put('/admin/cabang-asrama/{cabang}', [CabangAsramaController::class, 'update'])->name('admin.cabang.update');
+    Route::patch('/admin/cabang-asrama/{cabang}/toggle', [CabangAsramaController::class, 'toggle'])->name('admin.cabang.toggle');
 
     Route::get('/admin/reservasi', [ReservasiController::class, 'index'])->name('admin.reservasi.index');
     Route::get('/admin/perpanjangan', [AdminPerpanjanganController::class, 'index'])->name('admin.perpanjangan.index');

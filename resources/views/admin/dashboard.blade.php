@@ -8,6 +8,21 @@
         <p class="mt-1 text-xs text-slate-500 sm:text-sm">Gambaran umum ketersediaan kamar, reservasi, dan aktivitas asrama INSTIKI.</p>
     </div>
 
+    @if(!empty($branchCapacitySummaries))
+        <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="mb-4"><h2 class="text-base font-bold text-slate-900">Ringkasan tiap cabang</h2><p class="mt-1 text-xs text-slate-500">Okupansi dan kapasitas dihitung dari placement.</p></div>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                @foreach($branchCapacitySummaries as $branch)
+                    <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <h3 class="font-semibold text-slate-900">{{ $branch['nama'] }}</h3>
+                        <p class="mt-1 text-xs text-slate-500">{{ $branch['alamat'] }}</p>
+                        <p class="mt-3 text-sm text-slate-700">{{ $branch['penghuniAktif'] }} aktif · {{ $branch['kapasitasTersedia'] }} tempat tersedia dari {{ $branch['totalKapasitas'] }}</p>
+                    </article>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
     <!-- Grid Status Cards (4 Cards) -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <!-- Total Kamar -->
@@ -97,6 +112,7 @@
                                         @if($reservasi->kamar)
                                             <span class="font-bold text-slate-800">{{ $reservasi->kamar->nomor_kamar }}</span>
                                             <span class="block text-[11px] text-slate-400">Blok {{ $reservasi->kamar->blok }}</span>
+                                            <span class="block text-[11px] text-blue-800">{{ $reservasi->cabangAsrama?->nama ?? $reservasi->kamar->cabangAsrama?->nama ?? 'Cabang belum ditetapkan' }}</span>
                                         @else
                                             <span class="font-medium italic text-amber-600">Belum ditentukan</span>
                                         @endif

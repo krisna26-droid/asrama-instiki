@@ -24,6 +24,19 @@
         <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Tersedia</p><strong class="mt-1 block text-2xl">{{ $capacitySummary['kapasitasTersedia'] }}</strong></div>
         <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Keterisian</p><strong class="mt-1 block text-2xl">{{ $capacitySummary['persentase'] }}%</strong></div>
     </div>
+    @if(!empty($branchCapacitySummaries))
+        <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 class="font-bold text-slate-900">Rekap cabang pada {{ $tanggalAcuan }}</h2>
+            <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                @foreach($branchCapacitySummaries as $branch)
+                    <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <h3 class="font-semibold text-slate-900">{{ $branch['nama'] }}</h3>
+                        <p class="mt-2 text-sm text-slate-700">Aktif {{ $branch['penghuniAktif'] ?? '—' }} · tersedia {{ $branch['kapasitasTersedia'] ?? '—' }} / {{ $branch['totalKapasitas'] }}</p>
+                    </article>
+                @endforeach
+            </div>
+        </section>
+    @endif
 
     <!-- Grid Kartu Laporan -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

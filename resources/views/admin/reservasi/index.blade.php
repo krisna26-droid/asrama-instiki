@@ -33,7 +33,7 @@
     @endforeach
 
     <!-- Filter -->
-    <form method="GET" action="{{ route('admin.reservasi.index') }}" class="grid grid-cols-1 items-end gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-6">
+    <form method="GET" action="{{ route('admin.reservasi.index') }}" class="grid grid-cols-1 items-end gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-7">
         <div class="lg:col-span-2">
             <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pencarian</label>
             <input name="search" value="{{ request('search') }}" placeholder="Nama, NIK, kode" class="{{ $inputClass }}">
@@ -47,6 +47,11 @@
                     <option value="{{ $value }}" @selected(request('status') === $value)>{{ $meta[0] }}</option>
                 @endforeach
             </select>
+        </div>
+
+        <div>
+            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cabang</label>
+            <select name="cabang_asrama_id" class="{{ $inputClass }}"><option value="">Semua cabang</option>@foreach($cabangs as $cabang)<option value="{{ $cabang->id }}" @selected(request('cabang_asrama_id') == $cabang->id)>{{ $cabang->nama }}</option>@endforeach</select>
         </div>
 
         <div>
@@ -110,6 +115,7 @@
                                             <span class="font-semibold text-slate-800">Kamar {{ $placement->kamar->nomor_kamar ?? '—' }}</span>
                                             <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">{{ $placementLabels[$placement->status] ?? $placement->status }}</span>
                                         </div>
+                                        <span class="mb-1 block text-[11px] font-medium text-blue-800">Cabang: {{ $placement->cabangAsrama?->nama ?? 'Belum ditetapkan' }}</span>
                                         <span class="mb-2 block whitespace-nowrap text-[11px] text-slate-500">
                                             {{ $placement->tanggal_mulai->format('d M Y') }} – {{ $placement->tanggal_akhir->format('d M Y') }}
                                             · {{ $res->durasi_bulan ?? '—' }} bulan
@@ -159,6 +165,11 @@
                                                 </div>
 
                                                 <div class="grid grid-cols-2 gap-3">
+                                                    <div class="col-span-2">
+                                                        <label class="{{ $labelClass }}">Cabang penempatan</label>
+                                                        <select name="cabang_asrama_id" required class="{{ $inputClass }}"><option value="">Pilih cabang aktif</option>@foreach($cabangs as $cabang)<option value="{{ $cabang->id }}">{{ $cabang->nama }}</option>@endforeach</select>
+                                                        <span class="mt-1 block text-[10px] text-slate-500">Kamar dipilih otomatis oleh sistem dari cabang ini, sesuai kategori penghuni dan kapasitas periode.</span>
+                                                    </div>
                                                     <div>
                                                         <label class="{{ $labelClass }}">Mulai</label>
                                                         <input type="date" name="tanggal_mulai" required class="{{ $inputClass }}">
@@ -179,7 +190,7 @@
                                                 </div>
                                                 </div>
 
-                                            <p class="text-[11px] leading-relaxed text-slate-500">Tanggal akhir dihitung otomatis dari tanggal mulai dan durasi. Sistem mengalokasikan kamar yang sesuai dan menyimpan snapshot tarif serta total tagihan sebelum pembayaran dibuka.</p>
+                                            <p class="text-[11px] leading-relaxed text-slate-500">Tanggal akhir dihitung dari tanggal mulai dan durasi. Sistem memilih kamar secara acak di cabang terpilih setelah validasi kapasitas, lalu menyimpan snapshot tarif dan tagihan.</p>
 
                                                 <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
                                                     <button type="button" @click="open = false" class="rounded-lg border border-slate-300 px-4 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50">Batal</button>
@@ -233,6 +244,10 @@
                                             </div>
 
                                             <div class="grid grid-cols-2 gap-3">
+                                                <div class="col-span-2">
+                                                    <label class="{{ $labelClass }}">Cabang untuk penempatan terverifikasi</label>
+                                                    <select name="cabang_asrama_id" required class="{{ $inputClass }}"><option value="">Pilih cabang aktif</option>@foreach($cabangs as $cabang)<option value="{{ $cabang->id }}">{{ $cabang->nama }}</option>@endforeach</select>
+                                                </div>
                                                 <div>
                                                     <label class="{{ $labelClass }}">Mulai</label>
                                                     <input type="date" name="tanggal_mulai" required class="{{ $inputClass }}">

@@ -28,10 +28,15 @@
     @endforeach
 
     <!-- Filter -->
-    <form method="GET" action="{{ route('admin.penghuni.index') }}" class="grid grid-cols-1 items-end gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-6">
+    <form method="GET" action="{{ route('admin.penghuni.index') }}" class="grid grid-cols-1 items-end gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-7">
         <div>
             <label class="{{ $filterLabel }}">Pencarian</label>
             <input name="search" value="{{ request('search') }}" placeholder="Nama, NIK, nomor kamar" class="{{ $inputClass }}">
+        </div>
+
+        <div>
+            <label class="{{ $filterLabel }}">Cabang</label>
+            <select name="cabang_asrama_id" class="{{ $inputClass }}"><option value="">Semua cabang</option>@foreach($cabangs as $cabang)<option value="{{ $cabang->id }}" @selected(request('cabang_asrama_id') == $cabang->id)>{{ $cabang->nama }}</option>@endforeach</select>
         </div>
 
         <div>
@@ -107,6 +112,7 @@
                                 @if($placement->kamar)
                                     <span class="block font-semibold text-slate-800">Kamar {{ $placement->kamar->nomor_kamar }}</span>
                                     <span class="block text-xs text-slate-500">Blok {{ $placement->kamar->blok }}</span>
+                                    <span class="block text-xs font-medium text-blue-800">{{ $placement->cabangAsrama?->nama ?? 'Cabang belum ditetapkan' }}</span>
                                 @else
                                     <span class="text-slate-400">—</span>
                                 @endif
@@ -145,7 +151,7 @@
 
                                                 <div class="rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
                                                     <span class="block text-sm font-semibold text-slate-900">{{ $placement->user->nama ?? '—' }}</span>
-                                                    <span class="block">Kamar {{ $placement->kamar->nomor_kamar ?? '—' }} · {{ $placement->tanggal_mulai->format('d M Y') }} – {{ $placement->tanggal_akhir->format('d M Y') }}</span>
+                                                    <span class="block">Kamar {{ $placement->kamar->nomor_kamar ?? '—' }} · {{ $placement->cabangAsrama?->nama ?? 'Cabang belum ditetapkan' }} · {{ $placement->tanggal_mulai->format('d M Y') }} – {{ $placement->tanggal_akhir->format('d M Y') }}</span>
                                                 </div>
 
                                                 @if($placement->tanggal_mulai->toDateString() > now()->toDateString())
@@ -180,7 +186,7 @@
 
                                                 <div class="rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
                                                     <span class="block text-sm font-semibold text-slate-900">{{ $placement->user->nama ?? '—' }}</span>
-                                                    <span class="block">Kamar {{ $placement->kamar->nomor_kamar ?? '—' }} · {{ $placement->tanggal_mulai->format('d M Y') }} – {{ $placement->tanggal_akhir->format('d M Y') }}</span>
+                                                    <span class="block">Kamar {{ $placement->kamar->nomor_kamar ?? '—' }} · {{ $placement->cabangAsrama?->nama ?? 'Cabang belum ditetapkan' }} · {{ $placement->tanggal_mulai->format('d M Y') }} – {{ $placement->tanggal_akhir->format('d M Y') }}</span>
                                                 </div>
 
                                                 <div>

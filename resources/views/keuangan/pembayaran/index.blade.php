@@ -84,6 +84,7 @@
                                 <span class="block text-[11px] text-slate-400">{{ $payment->created_at->format('d M Y') }}</span>
                                 @if($payment->perpanjangan)
                                     <span class="mt-1 block text-[11px] font-semibold text-blue-800">Perpanjangan {{ $payment->perpanjangan->durasi_bulan }} bulan · Kamar {{ $payment->perpanjangan->penempatan?->kamar?->nomor_kamar ?? '—' }}</span>
+                                    <span class="block text-[11px] text-blue-700">Cabang {{ $payment->perpanjangan->penempatan?->cabangAsrama?->nama ?? 'Belum tercatat pada placement ini' }}</span>
                                     <span class="block text-[11px] text-slate-600">{{ $payment->perpanjangan->tanggal_akhir_sebelum->format('d M Y') }} – {{ $payment->perpanjangan->tanggal_akhir_diajukan->format('d M Y') }}</span>
                                     <span class="block text-[10px] text-slate-500">Tarif snapshot Rp {{ number_format($payment->perpanjangan->tarif_bulanan, 0, ',', '.') }}/bulan</span>
                                 @elseif($payment->reservasi?->durasi_bulan && $payment->reservasi?->tarif_bulanan_disetujui !== null && $payment->reservasi?->jumlah_tagihan !== null)
@@ -95,6 +96,9 @@
                                         Tarif snapshot Rp {{ number_format($payment->reservasi->tarif_bulanan_disetujui, 0, ',', '.') }}/bulan
                                         · Tagihan Rp {{ number_format($payment->reservasi->jumlah_tagihan, 0, ',', '.') }}
                                     </span>
+                                @endif
+                                @if(!$payment->perpanjangan && $payment->reservasi?->cabang_asrama_id)
+                                    <span class="mt-1 block text-[11px] font-medium text-blue-700">Cabang {{ $payment->reservasi->cabangAsrama?->nama ?? 'Belum tercatat pada reservasi ini' }}</span>
                                 @endif
                             </td>
 

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Kamar extends Model
 {
@@ -12,6 +13,7 @@ class Kamar extends Model
 
     protected $fillable = [
         'nomor_kamar',
+        'cabang_asrama_id',
         'blok',
         'lantai',
         'kategori',
@@ -27,6 +29,11 @@ class Kamar extends Model
     public function penempatans(): HasMany
     {
         return $this->hasMany(PenempatanPenghuni::class);
+    }
+
+    public function cabangAsrama(): BelongsTo
+    {
+        return $this->belongsTo(CabangAsrama::class, 'cabang_asrama_id');
     }
 
     protected function casts(): array

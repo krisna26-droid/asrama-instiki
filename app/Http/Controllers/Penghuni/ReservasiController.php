@@ -15,14 +15,14 @@ class ReservasiController extends Controller
 {
     public function index()
     {
-        $reservasiAktif = Reservasi::with(['penempatans.kamar'])
+        $reservasiAktif = Reservasi::with(['cabangAsrama', 'penempatans.kamar.cabangAsrama', 'penempatans.cabangAsrama'])
             ->where('user_id', auth()->id())
             ->whereIn('status', ['pending', 'approved', 'legacy_unverified', 'no_show'])
             ->latest()
             ->first();
 
         $reservasiRiwayat = Reservasi::query()
-            ->with(['penempatans.kamar'])
+            ->with(['cabangAsrama', 'penempatans.kamar.cabangAsrama', 'penempatans.cabangAsrama'])
             ->where('user_id', auth()->id())
             ->whereNotIn('status', ['pending', 'approved', 'legacy_unverified', 'no_show'])
             ->latest('tanggal_pengajuan')

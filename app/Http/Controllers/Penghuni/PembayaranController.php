@@ -21,7 +21,7 @@ class PembayaranController extends Controller
     public function index()
     {
         $userId = auth()->id();
-        $reservasi = Reservasi::query()->with(['kamar', 'penempatans.kamar'])->where('user_id', $userId)->where('status', 'approved')->whereNotNull('kamar_id')
+        $reservasi = Reservasi::query()->with(['cabangAsrama', 'kamar.cabangAsrama', 'penempatans.kamar.cabangAsrama', 'penempatans.cabangAsrama'])->where('user_id', $userId)->where('status', 'approved')->whereNotNull('kamar_id')
             ->whereHas('penempatans', fn ($query) => $query->whereIn('status', ['scheduled', 'active']))
             ->latest()->first();
         if ($reservasi && !$reservasi->kamar) {
@@ -31,10 +31,10 @@ class PembayaranController extends Controller
             ? Pembayaran::query()->where('reservasi_id', $reservasi->id)->whereNull('perpanjangan_id')->latest()->first()
             : null;
         $riwayatPembayaran = Pembayaran::query()->with('perpanjangan')->where('user_id', $userId)->latest()->paginate(10)->withQueryString();
-        $activePlacement = PenempatanPenghuni::query()->with('kamar')
+        $activePlacement = PenempatanPenghuni::query()->with(['kamar.cabangAsrama', 'cabangAsrama'])
             ->where('user_id', $userId)->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')
             ->latest('id')->first();
-        $extensions = PerpanjanganPenempatan::query()->with(['penempatan.kamar', 'pembayarans'])
+        $extensions = PerpanjanganPenempatan::query()->with(['penempatan.kamar.cabangAsrama', 'penempatan.cabangAsrama', 'pembayarans'])
             ->where('user_id', $userId)->latest()->limit(10)->get();
 
         return view('penghuni.pembayaran.index', compact('reservasi', 'pembayaranAktif', 'riwayatPembayaran', 'activePlacement', 'extensions'));
@@ -138,7 +138,7 @@ class PembayaranController extends Controller
 
     public function cetakKuitansi(int $id)
     {
-        $pembayaran = Pembayaran::with(['user', 'reservasi.kamar', 'perpanjangan.penempatan.kamar'])
+        $pembayaran = Pembayaran::with(['user', 'reservasi.cabangAsrama', 'reservasi.kamar.cabangAsrama', 'perpanjangan.penempatan.cabangAsrama', 'perpanjangan.penempatan.kamar.cabangAsrama'])
             ->where('user_id', auth()->id())->where('status', 'paid')->findOrFail($id);
         $logoPath = public_path('image/Vertical-Logo.png');
         $logoBase64 = is_file($logoPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath)) : '';

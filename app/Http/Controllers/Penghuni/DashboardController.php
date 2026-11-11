@@ -17,6 +17,7 @@ class DashboardController extends Controller
         // 1. Ambil data reservasi terbaru milik user (termasuk relasi kamar)
         $reservasi = Reservasi::query()
             ->where('user_id', $user->id)
+            ->with(['cabangAsrama', 'kamar.cabangAsrama'])
             ->latest()
             ->first();
         $hasOpenReservation = Reservasi::query()->where('user_id', $user->id)
@@ -33,7 +34,7 @@ class DashboardController extends Controller
             ->latest('id')->first();
 
         $assignedPlacements = PenempatanPenghuni::query()
-            ->with('kamar')
+            ->with(['kamar.cabangAsrama', 'cabangAsrama'])
             ->where('user_id', $user->id)
             ->whereIn('status', ['scheduled', 'active'])
             ->whereHas('reservasi', fn ($query) => $query->where('status', 'approved'))

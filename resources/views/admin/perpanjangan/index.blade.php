@@ -61,6 +61,7 @@
                             </td>
                             <td class="px-4 py-4">
                                 <strong class="block text-slate-900">Kamar {{ $extension->penempatan?->kamar?->nomor_kamar ?? '—' }}</strong>
+                                <span class="block text-xs font-semibold text-blue-800">Cabang: {{ $extension->penempatan?->cabangAsrama?->nama ?? 'Belum tercatat pada placement ini' }}</span>
                                 <span class="block text-xs text-slate-600">Sebelum: {{ $extension->tanggal_akhir_sebelum->format('d M Y') }}</span>
                                 <span class="block text-xs text-slate-600">Jika disetujui dan lunas: sampai {{ $extension->tanggal_akhir_diajukan->format('d M Y') }}</span>
                                 <span class="mt-1 block text-[11px] text-slate-400">Tanggal akhir bersifat eksklusif. Pengajuan {{ $extension->diajukan_at?->format('d M Y H:i') ?? $extension->created_at?->format('d M Y H:i') }}</span>

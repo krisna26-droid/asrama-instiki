@@ -120,6 +120,42 @@
             </div>
         </section>
 
+        @if(!empty($cabangSummaries))
+            <section class="bg-white py-12 sm:py-16" aria-labelledby="cabang-asrama-title">
+                <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                    <div class="mb-7">
+                        <p class="text-xs font-bold uppercase tracking-[0.18em] text-[#ed1c24]">Beberapa titik lokasi</p>
+                        <h2 id="cabang-asrama-title" class="mt-2 text-2xl font-bold text-slate-900">Pilih lokasi asrama yang sesuai</h2>
+                        <p class="mt-2 text-sm text-slate-600">Pengajuan tidak memilih kamar. Admin Asrama akan menentukan cabang dan sistem mengalokasikan kamar setelah pengajuan ditinjau.</p>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        @foreach($cabangSummaries as $cabang)
+                            <article class="rounded-xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+                                <span class="font-mono text-xs text-slate-400">{{ $cabang['kode'] }}</span>
+                                <h3 class="mt-1 text-lg font-bold text-slate-900">{{ $cabang['nama'] }}</h3>
+                                <p class="mt-2 text-sm text-slate-600">{{ $cabang['alamat'] }}</p>
+                                <dl class="mt-4 grid grid-cols-3 gap-2 border-t border-slate-200 pt-4 text-center">
+                                    <div><dt class="text-[10px] text-slate-500">Kapasitas</dt><dd class="mt-1 font-bold text-slate-900">{{ number_format($cabang['totalKapasitas']) }}</dd></div>
+                                    <div><dt class="text-[10px] text-slate-500">Aktif</dt><dd class="mt-1 font-bold text-blue-800">{{ $cabang['schemaReady'] ? number_format($cabang['penghuniAktif']) : '—' }}</dd></div>
+                                    <div><dt class="text-[10px] text-slate-500">Tersedia</dt><dd class="mt-1 font-bold text-emerald-700">{{ $cabang['schemaReady'] ? number_format($cabang['kapasitasTersedia']) : '—' }}</dd></div>
+                                </dl>
+                                <div class="mt-4 flex items-center justify-between gap-3">
+                                    <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $cabang['schemaReady'] && $cabang['kapasitasTersedia'] > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700' }}">{{ $cabang['schemaReady'] ? $cabang['statusKetersediaan'] : 'Data diperbarui setelah verifikasi' }}</span>
+                                    @if($cabang['maps_url'])<a href="{{ $cabang['maps_url'] }}" target="_blank" rel="noopener noreferrer" class="text-sm font-semibold text-blue-700">Lihat peta ↗</a>@endif
+                                </div>
+                                @if($cabang['telepon'] || $cabang['whatsapp'])
+                                    <div class="mt-3 flex flex-wrap gap-3 text-xs">
+                                        @if($cabang['telepon'])<a class="font-medium text-slate-600" href="tel:{{ preg_replace('/[^0-9+]/', '', $cabang['telepon']) }}">Telepon {{ $cabang['telepon'] }}</a>@endif
+                                        @if($cabang['whatsapp'])<a class="font-medium text-emerald-700" href="https://wa.me/{{ preg_replace('/\D+/', '', $cabang['whatsapp']) }}" target="_blank" rel="noopener noreferrer">WhatsApp</a>@endif
+                                    </div>
+                                @endif
+                            </article>
+                        @endforeach
+                    </div>
+                </div>
+            </section>
+        @endif
+
         {{-- Galeri fasilitas dan informasi kontak --}}
         @php
             // Maksimal 2 foto fasilitas; sisanya diisi foto bawaan supaya kolase tetap penuh

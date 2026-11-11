@@ -14,7 +14,7 @@ class PerpanjanganController extends Controller
     public function index(Request $request): View
     {
         $status = $request->string('status', 'pending')->toString();
-        $query = PerpanjanganPenempatan::query()->with(['user', 'penempatan.kamar', 'pembayarans']);
+        $query = PerpanjanganPenempatan::query()->with(['user', 'penempatan.kamar.cabangAsrama', 'penempatan.cabangAsrama', 'pembayarans']);
         if ($status !== 'semua') {
             $query->where('status', $status);
         }

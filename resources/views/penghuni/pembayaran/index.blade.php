@@ -58,6 +58,7 @@
                         <p class="mt-2 text-xs text-slate-700">
                             Kamar {{ $placement->kamar?->nomor_kamar ?? 'menunggu alokasi' }}
                             @if($placement->kamar) · Blok {{ $placement->kamar->blok }}@endif
+                            · Cabang {{ $placement->cabangAsrama?->nama ?? 'belum tercatat' }}
                             — {{ $placement->status === 'active' ? 'aktif' : 'menunggu check-in' }}
                         </p>
                     @endforeach
@@ -278,7 +279,7 @@
                 $hasOpenExtension = $placementExtensions->contains(fn ($item) => in_array($item->status, ['pending', 'approved'], true));
             @endphp
             <div class="rounded-lg border border-blue-100 bg-blue-50/60 p-4 text-sm text-blue-950">
-                <p class="font-semibold">Kamar {{ $activePlacement->kamar?->nomor_kamar ?? '—' }} · Periode saat ini berakhir {{ $activePlacement->tanggal_akhir->format('d M Y') }}</p>
+                <p class="font-semibold">Kamar {{ $activePlacement->kamar?->nomor_kamar ?? '—' }} · {{ $activePlacement->cabangAsrama?->nama ?? 'Cabang belum tercatat' }} · Periode saat ini berakhir {{ $activePlacement->tanggal_akhir->format('d M Y') }}</p>
                 <p class="mt-1 text-xs leading-5 text-blue-800">Tanggal akhir tidak termasuk dalam masa hunian. Unggah bukti sebelum tanggal tersebut. Jika belum ada pembayaran yang diverifikasi, masa tinggal berakhir dan kamar kembali tersedia.</p>
             </div>
 
@@ -313,7 +314,7 @@
                     <article class="rounded-lg border border-slate-200 p-4">
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                                <p class="text-sm font-semibold text-slate-900">Kamar {{ $extension->penempatan?->kamar?->nomor_kamar ?? '—' }} · 1 bulan</p>
+                                <p class="text-sm font-semibold text-slate-900">Kamar {{ $extension->penempatan?->kamar?->nomor_kamar ?? '—' }} · {{ $extension->penempatan?->cabangAsrama?->nama ?? 'Cabang belum tercatat' }} · 1 bulan</p>
                                 <p class="mt-1 text-xs text-slate-600">{{ $extension->tanggal_akhir_sebelum->format('d M Y') }} – {{ $extension->tanggal_akhir_diajukan->format('d M Y') }}</p>
                                 <p class="mt-1 text-xs font-semibold text-slate-700">Tagihan: Rp {{ number_format($extension->jumlah_tagihan, 0, ',', '.') }}</p>
                             </div>

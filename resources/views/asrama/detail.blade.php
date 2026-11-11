@@ -104,6 +104,27 @@
         </div>
     </section>
 
+    @if(!empty($cabangSummaries))
+        <section class="border-b border-slate-200 bg-slate-50 py-10 sm:py-12">
+            <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+                <p class="text-xs font-bold uppercase tracking-[0.2em] text-[#ed1c24]">Titik lokasi</p>
+                <h2 class="mt-2 text-2xl font-bold text-slate-900">Cabang Asrama INSTIKI</h2>
+                <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    @foreach($cabangSummaries as $branch)
+                        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <span class="font-mono text-xs text-slate-400">{{ $branch['kode'] }}</span>
+                            <h3 class="mt-1 font-bold text-slate-900">{{ $branch['nama'] }}</h3>
+                            <p class="mt-2 text-sm text-slate-600">{{ $branch['alamat'] }}</p>
+                            <p class="mt-3 text-xs text-slate-700">{{ $branch['schemaReady'] ? $branch['kapasitasTersedia'] : '—' }} tempat tersedia dari {{ $branch['totalKapasitas'] }}</p>
+                            @if($branch['maps_url'])<a class="mt-3 inline-block text-sm font-semibold text-blue-700" href="{{ $branch['maps_url'] }}" target="_blank" rel="noopener noreferrer">Lihat peta ↗</a>@endif
+                            @if($branch['telepon'] || $branch['whatsapp'])<p class="mt-2 text-xs text-slate-600">@if($branch['telepon']){{ $branch['telepon'] }}@endif @if($branch['whatsapp'])· WhatsApp {{ $branch['whatsapp'] }}@endif</p>@endif
+                        </article>
+                    @endforeach
+                </div>
+            </div>
+        </section>
+    @endif
+
     <!-- Fasilitas -->
     <main class="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
         @if($facilities->isNotEmpty())

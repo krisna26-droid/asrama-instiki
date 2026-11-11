@@ -22,11 +22,11 @@ class PublicAsramaController extends Controller
 
         return view('welcome', array_merge(
             $occupancy->currentCapacitySummary(),
-            ['facilities' => $facilities, 'contact' => $contact],
+            ['facilities' => $facilities, 'contact' => $contact, 'cabangSummaries' => $occupancy->capacitySummaryByBranch()],
         ));
     }
 
-    public function showDetails(): View
+    public function showDetails(RoomOccupancyService $occupancy): View
     {
         $facilities = $this->hasColumns('fasilitas_asramas', ['id', 'aktif', 'judul', 'caption', 'deskripsi', 'gambar_path', 'urutan'])
             ? FasilitasAsrama::query()->where('aktif', true)->orderBy('urutan')->orderBy('id')->get()
@@ -36,7 +36,8 @@ class PublicAsramaController extends Controller
             ? AsramaSetting::query()->find(1)
             : null;
 
-        return view('asrama.detail', compact('facilities', 'contact'));
+        $cabangSummaries = $occupancy->capacitySummaryByBranch();
+        return view('asrama.detail', compact('facilities', 'contact', 'cabangSummaries'));
     }
 
     private function hasColumns(string $table, array $columns): bool

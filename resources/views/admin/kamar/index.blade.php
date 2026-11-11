@@ -23,21 +23,22 @@
     @endif
     @foreach($errors->all() as $error)<div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{{ $error }}</div>@endforeach
 
-    <form method="GET" action="{{ route('kamar.index') }}" class="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-6">
+    <form method="GET" action="{{ route('admin.kamar.index') }}" class="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-7">
         <input name="search" value="{{ request('search') }}" placeholder="Nomor kamar / blok" class="rounded-lg border-slate-300">
+        <select name="cabang_asrama_id" class="rounded-lg border-slate-300"><option value="">Semua cabang</option>@foreach($cabangs as $cabang)<option value="{{ $cabang->id }}" @selected(request('cabang_asrama_id') == $cabang->id)>{{ $cabang->nama }}</option>@endforeach</select>
         <select name="kategori" class="rounded-lg border-slate-300"><option value="">Semua kategori</option><option value="putra" @selected(request('kategori')==='putra')>Putra</option><option value="putri" @selected(request('kategori')==='putri')>Putri</option></select>
         <select name="status" class="rounded-lg border-slate-300"><option value="">Semua kondisi</option><option value="tersedia" @selected(request('status')==='tersedia')>Tersedia</option><option value="tersewa_penuh" @selected(request('status')==='tersewa_penuh')>Penuh (legacy)</option><option value="perbaikan" @selected(request('status')==='perbaikan')>Perbaikan</option></select>
         <input type="number" min="1" name="kapasitas_min" value="{{ request('kapasitas_min') }}" placeholder="Kapasitas minimum" class="rounded-lg border-slate-300">
         <select name="aktif" class="rounded-lg border-slate-300"><option value="">Semua status arsip</option><option value="1" @selected(request('aktif')==='1')>Aktif</option><option value="0" @selected(request('aktif')==='0')>Diarsipkan</option></select>
-        <div class="flex gap-2"><button class="flex-1 rounded-lg bg-slate-800 px-3 py-2 text-white">Filter</button><a href="{{ route('kamar.index') }}" class="rounded-lg border px-3 py-2 text-slate-700">Reset</a></div>
+        <div class="flex gap-2"><button class="flex-1 rounded-lg bg-slate-800 px-3 py-2 text-white">Filter</button><a href="{{ route('admin.kamar.index') }}" class="rounded-lg border px-3 py-2 text-slate-700">Reset</a></div>
     </form>
 
     <!-- Filter Status -->
     <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-4">
-        <a href="{{ route('kamar.index', ['status' => 'semua']) }}" class="px-4 py-1.5 text-xs font-semibold rounded-full {{ request('status', 'semua') == 'semua' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' }}">Semua</a>
-        <a href="{{ route('kamar.index', ['status' => 'tersedia']) }}" class="px-4 py-1.5 text-xs font-semibold rounded-full {{ request('status') == 'tersedia' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' }}">Tersedia</a>
-        <a href="{{ route('kamar.index', ['status' => 'tersewa_penuh']) }}" class="px-4 py-1.5 text-xs font-semibold rounded-full {{ request('status') == 'tersewa_penuh' ? 'bg-slate-700 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' }}">Penuh</a>
-        <a href="{{ route('kamar.index', ['status' => 'perbaikan']) }}" class="px-4 py-1.5 text-xs font-semibold rounded-full {{ request('status') == 'perbaikan' ? 'bg-amber-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' }}">Perbaikan</a>
+        <a href="{{ route('admin.kamar.index', ['status' => 'semua']) }}" class="px-4 py-1.5 text-xs font-semibold rounded-full {{ request('status', 'semua') == 'semua' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' }}">Semua</a>
+        <a href="{{ route('admin.kamar.index', ['status' => 'tersedia']) }}" class="px-4 py-1.5 text-xs font-semibold rounded-full {{ request('status') == 'tersedia' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' }}">Tersedia</a>
+        <a href="{{ route('admin.kamar.index', ['status' => 'tersewa_penuh']) }}" class="px-4 py-1.5 text-xs font-semibold rounded-full {{ request('status') == 'tersewa_penuh' ? 'bg-slate-700 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' }}">Penuh</a>
+        <a href="{{ route('admin.kamar.index', ['status' => 'perbaikan']) }}" class="px-4 py-1.5 text-xs font-semibold rounded-full {{ request('status') == 'perbaikan' ? 'bg-amber-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' }}">Perbaikan</a>
     </div>
 
     <!-- Grid Card Kamar -->
@@ -78,6 +79,7 @@
                     <!-- Text overlay -->
                     <div class="absolute bottom-3 left-3 right-3 text-white">
                         <h3 class="text-lg font-bold">Kamar {{ $kamar->nomor_kamar }}</h3>
+                        <p class="text-xs text-slate-200">{{ $kamar->cabangAsrama?->nama ?? 'Cabang belum ditetapkan' }}</p>
                         <p class="text-xs text-slate-300">Blok {{ $kamar->blok }} • Lantai {{ $kamar->lantai }}</p>
                     </div>
                 </div>
@@ -106,7 +108,7 @@
                     <button @click="showEditModal = true; editData = {{ \Illuminate\Support\Js::from($kamar) }}; editData.fotoInput = {{ \Illuminate\Support\Js::from(\Illuminate\Support\Str::startsWith($kamar->foto ?? '', ['http://', 'https://']) ? $kamar->foto : '') }}" class="flex-1 py-2 bg-white border border-slate-300 text-slate-700 font-semibold text-xs rounded-lg hover:bg-slate-100 transition text-center">
                         Edit Kamar
                     </button>
-                    <form action="{{ route('kamar.destroy', $kamar->id) }}" method="POST" onsubmit="return confirm('Arsipkan kamar ini? Kamar dengan penempatan yang belum selesai tidak dapat dinonaktifkan.');">
+                    <form action="{{ route('admin.kamar.destroy', $kamar->id) }}" method="POST" onsubmit="return confirm('Arsipkan kamar ini? Kamar dengan penempatan yang belum selesai tidak dapat dinonaktifkan.');">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="p-2 text-slate-400 hover:text-[#ed1c24] transition" title="Arsipkan">
@@ -133,8 +135,12 @@
                 <button @click="showAddModal = false" class="text-slate-400 hover:text-slate-600">&times;</button>
             </div>
 
-            <form action="{{ route('kamar.store') }}" method="POST" enctype="multipart/form-data" x-data="{ selectedRoomPhoto: null }" class="space-y-4 text-xs">
+            <form action="{{ route('admin.kamar.store') }}" method="POST" enctype="multipart/form-data" x-data="{ selectedRoomPhoto: null }" class="space-y-4 text-xs">
                 @csrf
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Cabang Asrama</label>
+                    <select name="cabang_asrama_id" required class="w-full border-slate-300 rounded text-xs focus:border-[#ed1c24] focus:ring-[#ed1c24]"><option value="">Pilih cabang aktif</option>@foreach($cabangs->where('is_active', true) as $cabang)<option value="{{ $cabang->id }}">{{ $cabang->nama }} · {{ $cabang->kode }}</option>@endforeach</select>
+                </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="font-bold text-slate-700 block mb-1">Nomor Kamar</label>
@@ -216,6 +222,10 @@
             <form :action="'/admin/kamar/' + editData.id" method="POST" enctype="multipart/form-data" x-data="{ selectedRoomPhoto: null }" class="space-y-4 text-xs">
                 @csrf
                 @method('PUT')
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Cabang Asrama</label>
+                    <select name="cabang_asrama_id" x-model="editData.cabang_asrama_id" required class="w-full border-slate-300 rounded text-xs focus:border-[#ed1c24] focus:ring-[#ed1c24]"><option value="">Pilih cabang</option>@foreach($cabangs as $cabang)<option value="{{ $cabang->id }}">{{ $cabang->nama }}{{ $cabang->is_active ? '' : ' (nonaktif)' }}</option>@endforeach</select>
+                </div>
                 
                 <div class="grid grid-cols-2 gap-3">
                     <div>

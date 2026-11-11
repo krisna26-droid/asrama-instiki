@@ -19,7 +19,7 @@ class PembayaranController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Pembayaran::query()->with(['user', 'reservasi', 'perpanjangan.penempatan.kamar']);
+        $query = Pembayaran::query()->with(['user', 'reservasi.cabangAsrama', 'reservasi.kamar.cabangAsrama', 'perpanjangan.penempatan.cabangAsrama', 'perpanjangan.penempatan.kamar.cabangAsrama']);
         if ($request->filled('status') && $request->input('status') !== 'semua') {
             $query->where('status', $request->string('status')->toString());
         }
@@ -79,7 +79,7 @@ class PembayaranController extends Controller
 
     public function riwayat(Request $request)
     {
-        $query = Pembayaran::query()->with(['user', 'reservasi', 'perpanjangan.penempatan.kamar'])->whereIn('status', ['paid', 'rejected']);
+        $query = Pembayaran::query()->with(['user', 'reservasi.cabangAsrama', 'reservasi.kamar.cabangAsrama', 'perpanjangan.penempatan.cabangAsrama', 'perpanjangan.penempatan.kamar.cabangAsrama'])->whereIn('status', ['paid', 'rejected']);
         if ($request->filled('search')) {
             $term = trim($request->string('search')->toString());
             $query->where(fn ($builder) => $builder->where('kode_pembayaran', 'like', "%{$term}%")
@@ -93,7 +93,7 @@ class PembayaranController extends Controller
 
     public function cetakKuitansi(int $id)
     {
-        $pembayaran = Pembayaran::with(['user', 'reservasi', 'perpanjangan.penempatan.kamar'])->where('status', 'paid')->findOrFail($id);
+        $pembayaran = Pembayaran::with(['user', 'reservasi.cabangAsrama', 'reservasi.kamar.cabangAsrama', 'perpanjangan.penempatan.cabangAsrama', 'perpanjangan.penempatan.kamar.cabangAsrama'])->where('status', 'paid')->findOrFail($id);
         $logoPath = public_path('image/Vertical-Logo.png');
         $logoBase64 = is_file($logoPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath)) : '';
         return Pdf::loadView('penghuni.pembayaran.kuitansi_pdf', compact('pembayaran', 'logoBase64'))

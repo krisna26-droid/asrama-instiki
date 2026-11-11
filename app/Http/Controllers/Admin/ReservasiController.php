@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\CabangAsrama;
 use App\Models\Reservasi;
 use App\Services\ReservationLifecycleService;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ class ReservasiController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Reservasi::query()->with(['user', 'kamar', 'penempatans.kamar']);
+        $query = Reservasi::query()->with(['user', 'kamar.cabangAsrama', 'cabangAsrama', 'penempatans.kamar.cabangAsrama', 'penempatans.cabangAsrama']);
 
         if ($request->filled('status') && $request->string('status')->toString() !== 'semua') {
             $query->where('status', $request->string('status')->toString());
@@ -34,20 +35,25 @@ class ReservasiController extends Controller
         if ($request->filled('tanggal_sampai')) {
             $query->whereDate('tanggal_pengajuan', '<=', $request->date('tanggal_sampai'));
         }
+        if ($request->filled('cabang_asrama_id')) {
+            $query->where('cabang_asrama_id', $request->integer('cabang_asrama_id'));
+        }
 
         $reservasis = $query->latest()->paginate(15)->withQueryString();
-        return view('admin.reservasi.index', compact('reservasis'));
+        $cabangs = CabangAsrama::query()->where('is_active', true)->orderBy('nama')->get();
+        return view('admin.reservasi.index', compact('reservasis', 'cabangs'));
     }
 
     public function approve(Request $request, Reservasi $reservasi, ReservationLifecycleService $lifecycle)
     {
         $validated = $request->validate([
             'tanggal_mulai' => ['required', 'date_format:Y-m-d'],
+            'cabang_asrama_id' => ['required', 'integer', 'exists:cabang_asramas,id'],
             'durasi_bulan' => ['nullable', 'integer', 'min:1', 'max:12'],
         ]);
 
-        $lifecycle->approve($reservasi->id, $validated['tanggal_mulai'], isset($validated['durasi_bulan']) ? (int) $validated['durasi_bulan'] : null);
-        return redirect()->route('admin.reservasi.index')->with('success', 'Reservasi disetujui, periode dan tagihan dihitung dari durasi, lalu kamar dialokasikan otomatis.');
+        $lifecycle->approve($reservasi->id, $validated['tanggal_mulai'], (int) $validated['cabang_asrama_id'], isset($validated['durasi_bulan']) ? (int) $validated['durasi_bulan'] : null);
+        return redirect()->route('admin.reservasi.index')->with('success', 'Reservasi disetujui. Sistem mengalokasikan kamar yang sesuai secara acak di cabang pilihan dan menghitung periode serta tagihan.');
     }
 
     public function reject(Request $request, Reservasi $reservasi)
@@ -72,8 +78,9 @@ class ReservasiController extends Controller
         $validated = $request->validate([
             'tanggal_mulai' => ['required', 'date_format:Y-m-d'],
             'tanggal_akhir' => ['required', 'date_format:Y-m-d', 'after:tanggal_mulai'],
+            'cabang_asrama_id' => ['required', 'integer', 'exists:cabang_asramas,id'],
         ]);
-        $lifecycle->verifyLegacy($reservasi->id, $validated['tanggal_mulai'], $validated['tanggal_akhir']);
-        return back()->with('success', 'Reservasi lama diverifikasi dan placement baru dibuat tanpa menghapus histori.');
+        $lifecycle->verifyLegacy($reservasi->id, $validated['tanggal_mulai'], $validated['tanggal_akhir'], (int) $validated['cabang_asrama_id']);
+        return back()->with('success', 'Reservasi lama diverifikasi dan kamar dialokasikan di cabang pilihan tanpa menghapus histori.');
     }
 }

@@ -11,7 +11,7 @@ class PenempatanPenghuni extends Model
     protected $table = 'penempatan_penghunis';
 
     protected $fillable = [
-        'reservasi_id', 'user_id', 'kamar_id', 'transfer_dari_id',
+        'reservasi_id', 'user_id', 'kamar_id', 'cabang_asrama_id', 'transfer_dari_id',
         'tanggal_mulai', 'tanggal_akhir', 'tanggal_akhir_asal_sebelum_transfer', 'status', 'check_in_at',
         'check_in_oleh', 'check_out_at', 'check_out_oleh', 'catatan_lifecycle',
     ];
@@ -30,6 +30,7 @@ class PenempatanPenghuni extends Model
     public function reservasi(): BelongsTo { return $this->belongsTo(Reservasi::class); }
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
     public function kamar(): BelongsTo { return $this->belongsTo(Kamar::class); }
+    public function cabangAsrama(): BelongsTo { return $this->belongsTo(CabangAsrama::class, 'cabang_asrama_id'); }
     public function transferDari(): BelongsTo { return $this->belongsTo(self::class, 'transfer_dari_id'); }
     public function transferKe(): HasMany { return $this->hasMany(self::class, 'transfer_dari_id'); }
     public function checkInOleh(): BelongsTo { return $this->belongsTo(User::class, 'check_in_oleh'); }

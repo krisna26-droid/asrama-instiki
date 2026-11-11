@@ -129,6 +129,10 @@
                         @if($placement->kamar)
                             <p class="mt-1 text-xs text-slate-600">Blok {{ $placement->kamar->blok }}</p>
                         @endif
+                        <p class="mt-1 text-xs font-semibold text-blue-800">Cabang: {{ $placement->cabangAsrama?->nama ?? 'Belum tercatat pada placement ini' }}</p>
+                        @if($placement->cabangAsrama?->alamat)
+                            <p class="mt-1 text-xs text-slate-500">{{ $placement->cabangAsrama->alamat }}</p>
+                        @endif
                         <p class="mt-2 text-xs text-slate-600">
                             {{ $placement->tanggal_mulai->format('d M Y') }} – {{ $placement->tanggal_akhir->format('d M Y') }}
                             <span class="text-slate-400">(akhir tidak termasuk)</span>

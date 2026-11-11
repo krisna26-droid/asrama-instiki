@@ -14,6 +14,7 @@ class Reservasi extends Model
         'kode_reservasi',
         'user_id',
         'kamar_id',
+        'cabang_asrama_id',
         'tanggal_pengajuan',
         'durasi_sewa',
         'durasi_bulan',
@@ -36,6 +37,11 @@ class Reservasi extends Model
     public function kamarLegacy()
     {
         return $this->belongsTo(Kamar::class, 'kamar_legacy_id');
+    }
+
+    public function cabangAsrama()
+    {
+        return $this->belongsTo(CabangAsrama::class, 'cabang_asrama_id');
     }
 
     public function penempatans(): HasMany

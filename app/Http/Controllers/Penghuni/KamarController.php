@@ -10,7 +10,8 @@ class KamarController extends Controller
     public function index(RoomOccupancyService $occupancy)
     {
         $capacity = $occupancy->currentCapacitySummary();
+        $branchCapacitySummaries = $occupancy->capacitySummaryByBranch();
         $hasActiveRequest = auth()->user()->punyaKamarAktif();
-        return view('penghuni.kamar.index', compact('capacity', 'hasActiveRequest'));
+        return view('penghuni.kamar.index', compact('capacity', 'branchCapacitySummaries', 'hasActiveRequest'));
     }
 }

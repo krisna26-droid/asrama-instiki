@@ -21,6 +21,7 @@ class LaporanController extends Controller
             $tanggalAcuan = now()->toDateString();
         }
         $capacitySummary = $occupancy->capacitySummaryAt($tanggalAcuan);
+        $branchCapacitySummaries = $occupancy->capacitySummaryByBranch($tanggalAcuan);
         $totalKamar = Kamar::where('is_active', true)->count();
         $kamarTerisi = PenempatanPenghuni::query()->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')->whereDate('tanggal_mulai', '<=', $tanggalAcuan)->whereDate('tanggal_akhir', '>', $tanggalAcuan)->distinct('kamar_id')->count('kamar_id');
         $totalPenghuni = $capacitySummary['penghuniAktif'];
@@ -64,6 +65,7 @@ class LaporanController extends Controller
             'chartApproved',
             'maxCount',
             'capacitySummary',
+            'branchCapacitySummaries',
             'tanggalAcuan'
         ));
     }
@@ -92,11 +94,12 @@ class LaporanController extends Controller
 
             switch ($type) {
                 case 'okupansi':
-                    $writeRow($file, ['No', 'Nomor Kamar', 'Blok', 'Lantai', 'Kategori', 'Kapasitas', 'Terisi', 'Status Kamar', 'Harga Bulanan (Rp)']);
-                    $data = Kamar::withCount(['penempatans as penghuni_aktif_count' => fn ($query) => $query->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')->whereDate('tanggal_mulai', '<=', now()->toDateString())->whereDate('tanggal_akhir', '>', now()->toDateString())])->get();
+                    $writeRow($file, ['No', 'Cabang', 'Nomor Kamar', 'Blok', 'Lantai', 'Kategori', 'Kapasitas', 'Terisi', 'Status Kamar', 'Harga Bulanan (Rp)']);
+                    $data = Kamar::with('cabangAsrama')->withCount(['penempatans as penghuni_aktif_count' => fn ($query) => $query->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')->whereDate('tanggal_mulai', '<=', now()->toDateString())->whereDate('tanggal_akhir', '>', now()->toDateString())])->get();
                     foreach ($data as $index => $row) {
                         $writeRow($file, [
                             $index + 1,
+                            $row->cabangAsrama->nama ?? 'Cabang belum ditetapkan',
                             $row->nomor_kamar,
                             $row->blok,
                             $row->lantai,
@@ -110,8 +113,8 @@ class LaporanController extends Controller
                     break;
 
                 case 'penghuni':
-                    $writeRow($file, ['No', 'Nama Penghuni', 'NIK', 'Email', 'No Telepon', 'Kamar', 'Blok', 'Durasi Sewa', 'Tanggal Masuk']);
-                    $data = PenempatanPenghuni::with(['user', 'kamar', 'reservasi'])->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')->whereDate('tanggal_mulai', '<=', now()->toDateString())->whereDate('tanggal_akhir', '>', now()->toDateString())->latest('check_in_at')->get();
+                    $writeRow($file, ['No', 'Nama Penghuni', 'NIK', 'Email', 'No Telepon', 'Cabang', 'Kamar', 'Blok', 'Durasi Sewa', 'Tanggal Masuk']);
+                    $data = PenempatanPenghuni::with(['user', 'kamar', 'cabangAsrama', 'reservasi'])->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')->whereDate('tanggal_mulai', '<=', now()->toDateString())->whereDate('tanggal_akhir', '>', now()->toDateString())->latest('check_in_at')->get();
                     foreach ($data as $index => $row) {
                         $writeRow($file, [
                             $index + 1,
@@ -119,6 +122,7 @@ class LaporanController extends Controller
                             $row->user->nik ?? '-',
                             $row->user->email ?? '-',
                             $row->user->no_telepon ?? '-',
+                            $row->cabangAsrama->nama ?? 'Cabang belum ditetapkan',
                             $row->kamar ? 'Kamar ' . $row->kamar->nomor_kamar : '-',
                             $row->kamar->blok ?? '-',
                             $row->reservasi->durasi_sewa ?? '-',
@@ -128,14 +132,15 @@ class LaporanController extends Controller
                     break;
 
                 case 'reservasi':
-                    $writeRow($file, ['No', 'Kode Reservasi', 'Nama Pemohon', 'NIK', 'Kamar Dialokasikan', 'Durasi Sewa', 'Status', 'Tanggal Pengajuan']);
-                    $data = Reservasi::with(['user', 'kamar'])->latest()->get();
+                    $writeRow($file, ['No', 'Kode Reservasi', 'Nama Pemohon', 'NIK', 'Cabang', 'Kamar Dialokasikan', 'Durasi Sewa', 'Status', 'Tanggal Pengajuan']);
+                    $data = Reservasi::with(['user', 'kamar', 'cabangAsrama'])->latest()->get();
                     foreach ($data as $index => $row) {
                         $writeRow($file, [
                             $index + 1,
                             $row->kode_reservasi,
                             $row->user->nama ?? '-',
                             $row->user->nik ?? 'Belum diverifikasi',
+                            $row->cabangAsrama->nama ?? 'Cabang belum ditetapkan',
                             $row->kamar ? 'Kamar ' . $row->kamar->nomor_kamar . ' (Blok ' . $row->kamar->blok . ')' : 'Belum ditentukan',
                             $row->durasi_sewa,
                             strtoupper($row->status),
@@ -161,11 +166,12 @@ class LaporanController extends Controller
                     break;
 
                 case 'pemeliharaan':
-                    $writeRow($file, ['No', 'Nomor Kamar', 'Blok', 'Kondisi Status', 'Fasilitas']);
-                    $data = Kamar::where('status', 'perbaikan')->get();
+                    $writeRow($file, ['No', 'Cabang', 'Nomor Kamar', 'Blok', 'Kondisi Status', 'Fasilitas']);
+                    $data = Kamar::with('cabangAsrama')->where('status', 'perbaikan')->get();
                     foreach ($data as $index => $row) {
                         $writeRow($file, [
                             $index + 1,
+                            $row->cabangAsrama->nama ?? 'Cabang belum ditetapkan',
                             $row->nomor_kamar,
                             $row->blok,
                             'DALAM PERBAIKAN',
@@ -175,11 +181,12 @@ class LaporanController extends Controller
                     break;
 
                 case 'fasilitas':
-                    $writeRow($file, ['No', 'Nomor Kamar', 'Blok', 'Kategori', 'Daftar Fasilitas']);
-                    $data = Kamar::all();
+                    $writeRow($file, ['No', 'Cabang', 'Nomor Kamar', 'Blok', 'Kategori', 'Daftar Fasilitas']);
+                    $data = Kamar::with('cabangAsrama')->get();
                     foreach ($data as $index => $row) {
                         $writeRow($file, [
                             $index + 1,
+                            $row->cabangAsrama->nama ?? 'Cabang belum ditetapkan',
                             $row->nomor_kamar,
                             $row->blok,
                             strtoupper($row->kategori),

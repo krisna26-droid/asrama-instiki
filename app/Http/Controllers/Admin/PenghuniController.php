@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PenempatanPenghuni;
 use App\Models\Kamar;
+use App\Models\CabangAsrama;
 use App\Services\ReservationLifecycleService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -22,13 +23,12 @@ class PenghuniController extends Controller
             throw ValidationException::withMessages(['tanggal_sampai' => 'Tanggal sampai harus sama atau setelah tanggal dari.']);
         }
         $status = $request->string('status', 'active')->toString();
-        $query = PenempatanPenghuni::query()->with(['user', 'kamar', 'reservasi.pembayarans']);
+        $query = PenempatanPenghuni::query()->with(['user', 'kamar.cabangAsrama', 'cabangAsrama', 'reservasi.pembayarans']);
 
         match ($status) {
             'scheduled' => $query->where('status', 'scheduled'),
             'history' => $query->whereIn('status', ['completed', 'cancelled', 'no_show']),
-            default => $query->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at')
-                ->whereDate('tanggal_mulai', '<=', now()->toDateString())->whereDate('tanggal_akhir', '>', now()->toDateString()),
+            default => $query->where('status', 'active')->whereNotNull('check_in_at')->whereNull('check_out_at'),
         };
 
         if ($request->filled('search')) {
@@ -41,6 +41,9 @@ class PenghuniController extends Controller
         if ($request->filled('jenis_kelamin')) {
             $query->whereHas('user', fn ($user) => $user->where('jenis_kelamin', $request->string('jenis_kelamin')->toString()));
         }
+        if ($request->filled('cabang_asrama_id')) {
+            $query->where('cabang_asrama_id', $request->integer('cabang_asrama_id'));
+        }
         if (!empty($filters['tanggal_dari'])) {
             $query->whereDate('tanggal_mulai', '>=', $filters['tanggal_dari']);
         }
@@ -49,15 +52,17 @@ class PenghuniController extends Controller
         }
 
         $penempatans = $query->orderByDesc('tanggal_mulai')->paginate(15)->withQueryString();
-        return view('admin.penghuni.index', compact('penempatans', 'status'));
+        $cabangs = CabangAsrama::query()->orderBy('nama')->get();
+        return view('admin.penghuni.index', compact('penempatans', 'status', 'cabangs'));
     }
 
     public function show(PenempatanPenghuni $placement)
     {
-        $placement->load(['user', 'kamar', 'reservasi.pembayarans', 'transferDari', 'transferKe.kamar']);
+        $placement->load(['user', 'kamar.cabangAsrama', 'cabangAsrama', 'reservasi.pembayarans', 'transferDari.cabangAsrama', 'transferDari.kamar', 'transferKe.kamar.cabangAsrama', 'transferKe.cabangAsrama']);
         $kamarsTujuan = Kamar::query()->where('is_active', true)->where('status', '!=', 'perbaikan')
+            ->whereHas('cabangAsrama', fn ($branch) => $branch->where('is_active', true))
             ->where('kategori', $placement->user->jenis_kelamin)->where('id', '!=', $placement->kamar_id)
-            ->orderBy('nomor_kamar')->get(['id', 'nomor_kamar', 'blok', 'kapasitas']);
+            ->with('cabangAsrama')->orderBy('nomor_kamar')->get(['id', 'nomor_kamar', 'blok', 'kapasitas', 'cabang_asrama_id']);
         return view('admin.penghuni.show', compact('placement', 'kamarsTujuan'));
     }
 
