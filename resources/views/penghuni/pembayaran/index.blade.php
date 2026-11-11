@@ -125,6 +125,8 @@
                 <form action="{{ route('penghuni.pembayaran.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                     @csrf
 
+                    @include('penghuni.pembayaran._rekening')
+
                     <!-- Dropzone -->
                     <div>
                         <h2 class="mb-3 text-base font-bold text-slate-900">Unggah Bukti Pembayaran</h2>
@@ -335,6 +337,9 @@
                                     <p class="mb-2 rounded-lg bg-rose-50 p-3 text-xs text-rose-800">Pembayaran sebelumnya ditolak: {{ $extensionPayment->catatan_keuangan ?? 'Silakan periksa bukti dan unggah ulang.' }}</p>
                                 @endif
                                 @if(now()->toDateString() < $extension->tanggal_akhir_sebelum->toDateString())
+                                    <div class="mt-3">
+                                        @include('penghuni.pembayaran._rekening')
+                                    </div>
                                     <form method="POST" action="{{ route('penghuni.perpanjangan.payment.store', $extension) }}" enctype="multipart/form-data" class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
                                         @csrf
                                         <label class="block flex-1 text-xs font-semibold text-slate-700">Bukti pembayaran (JPG, PNG, PDF; maks. 5 MB)
