@@ -89,18 +89,15 @@
     </header>
 
     <!-- Hero -->
-    <section class="relative isolate overflow-hidden bg-slate-900 text-white" style="min-height: 17rem;">
-        <div class="absolute inset-0 z-0" style="background-image: url('{{ asset('image/asrama-bg.png') }}'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
-        <div class="absolute inset-0 z-10" style="background: linear-gradient(to bottom, rgba(2, 6, 23, 0.7), rgba(2, 6, 23, 0.85));"></div>
-
-        <div class="relative z-20 mx-auto flex max-w-7xl flex-col justify-center px-4 py-14 sm:px-6 sm:py-20 lg:px-8" style="min-height: 17rem;">
+    <section class="relative overflow-hidden bg-slate-900 text-white" style="min-height: 17rem;">
+        <div class="mx-auto flex max-w-7xl flex-col justify-center px-4 py-14 sm:px-6 sm:py-20 lg:px-8" style="min-height: 17rem;">
             <nav class="text-xs text-slate-300" aria-label="Breadcrumb">
                 <a href="{{ url('/') }}" class="transition hover:text-white">Beranda</a>
                 <span class="mx-2 text-slate-500">/</span>
                 <span class="text-white">Detail Asrama</span>
             </nav>
             <h1 class="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">Detail <span class="text-[#ed1c24]">Asrama</span></h1>
-            <p class="mt-3 max-w-xl text-sm leading-6 text-slate-200 sm:text-base">Lihat fasilitas dan suasana Asrama Kampus INSTIKI dari dekat. Klik foto untuk memperbesar.</p>
+            <p class="mt-3 max-w-xl text-sm leading-6 text-slate-200 sm:text-base">Lihat foto fasilitas yang diunggah pengelola. Klik foto untuk memperbesar.</p>
         </div>
     </section>
 
